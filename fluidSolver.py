@@ -1,4 +1,59 @@
+#!/usr/bin/python
+
+# Import all necessary modules
 import numpy as np
+import h5py as hp
+
+############################################## USER PARAMETERS #######################################
+
+# Choose the grid sizes from sLst so as to allow for Multigrid operations
+# [2, 4, 6, 10, 18, 34, 66, 130, 258, 514, 1026, 2050]
+#  0  1  2  3   4   5   6    7    8    9    10    11
+sInd = np.array([5, 5, 5])
+
+# Flag for setting periodicity along X and Y directions of the domain
+xyPeriodic = True
+
+# Tangent-hyperbolic grid stretching factor
+beta = 1.0
+
+# Tolerance value in Jacobi iterations
+tolerance = 0.00001
+
+# Depth of each V-cycle in multigrid
+VDepth = 3
+
+# Number of V-cycles to be computed
+vcCnt = 10
+
+# Number of iterations during pre-smoothing
+preSm = 10
+
+# Number of iterations during post-smoothing
+pstSm = 50
+
+# Number of iterations during smoothing in between prolongation operators
+proSm = 60
+
+# Toggle fwMode between ASCII and HDF5  to write output data in corresponding format
+fwMode = "HDF5"
+
+# Time-step
+dt = 0.01
+
+# Number of iterations after which output must be printed to standard I/O
+opInt = 1
+
+# File writing interval
+fwInt = 0.01
+
+# Final time
+tMax = 0.1
+
+# Reynolds number
+Re = 1000
+
+########################################### END OF USER PARAMETERS ####################################
 
 # Redefine frequently used numpy object
 npax = np.newaxis
@@ -111,17 +166,24 @@ def D_Zt(inpFld, Nx, Ny, Nz, hz):
 
 # No-slip and no-penetration BCs
 def imposeUBCs(U):
-    # Left wall
-    U[0, :, :] = 0.0
+    global xyPeriodic
 
-    # Right wall
-    U[-1, :, :] = 0.0
+    # Periodic BCs along X and Y directions
+    if xyPeriodic:
 
-    # Front wall
-    U[:, 0, :] = -U[:, 1, :]
+    # No-slip and no-penetration BCs
+    else:
+        # Left wall
+        U[0, :, :] = 0.0
 
-    # Back wall
-    U[:, -1, :] = -U[:, -2, :]
+        # Right wall
+        U[-1, :, :] = 0.0
+
+        # Front wall
+        U[:, 0, :] = -U[:, 1, :]
+
+        # Back wall
+        U[:, -1, :] = -U[:, -2, :]
 
     # Bottom wall
     U[:, :, 0] = -U[:, :, 1]
@@ -555,27 +617,42 @@ OUTPUT: The maximum value of divergence in double precision
 
 
 def writeSoln(U, V, W, P, time):
+    global fwMode
     global N, M, L
     global xColl, yColl, zColl
 
-    fName = "Soln_" + "{0:09.5f}".format(time) + ".dat"
-    print "Writing solution file: ", fName
+    if fwMode == "ASCII":
+        fName = "Soln_" + "{0:09.5f}".format(time) + ".dat"
+        print "Writing solution file: ", fName
 
-    ofFile = open(fName, 'w')
-    ofFile.write("VARIABLES = X, Y, Z, U, V, W, P\n")
-    ofFile.write("ZONE T=S\tI={0}\tJ={1}\tK={2}\tF=POINT\tSOLUTIONTIME={3}\n".format(L, M, N, time))
-    for i in range(0, N):
-        for j in range(0, M):
-            for k in range(0, L):
-                ofFile.write("{0:23.16f}\t{1:23.16f}\t{2:23.16f}\t{3:23.16f}\t{4:23.16f}\t{5:23.16f}\t{6:23.16f}\n".format(
-                              xColl[k], yColl[j], zColl[i],
-                              (U[k, j, i] + U[k, j+1, i] + U[k, j, i+1] + U[k, j+1, i+1])/4.0,
-                              (V[k, j, i] + V[k+1, j, i] + V[k, j, i+1] + V[k+1, j, i+1])/4.0,
-                              (W[k, j, i] + W[k+1, j, i] + W[k, j+1, i] + W[k+1, j+1, i])/4.0,
-                              (P[k,   j, i] + P[k+1,   j, i] + P[k,   j+1, i] + P[k+1,   j+1, i] +
-                               P[k, j, i+1] + P[k+1, j, i+1] + P[k, j+1, i+1] + P[k+1, j+1, i+1])/8.0))
+        ofFile = open(fName, 'w')
+        ofFile.write("VARIABLES = X, Y, Z, U, V, W, P\n")
+        ofFile.write("ZONE T=S\tI={0}\tJ={1}\tK={2}\tF=POINT\tSOLUTIONTIME={3}\n".format(L, M, N, time))
+        for i in range(0, N):
+            for j in range(0, M):
+                for k in range(0, L):
+                    ofFile.write("{0:23.16f}\t{1:23.16f}\t{2:23.16f}\t{3:23.16f}\t{4:23.16f}\t{5:23.16f}\t{6:23.16f}\n".format(
+                                xColl[k], yColl[j], zColl[i],
+                                (U[k, j, i] + U[k, j+1, i] + U[k, j, i+1] + U[k, j+1, i+1])/4.0,
+                                (V[k, j, i] + V[k+1, j, i] + V[k, j, i+1] + V[k+1, j, i+1])/4.0,
+                                (W[k, j, i] + W[k+1, j, i] + W[k, j+1, i] + W[k+1, j+1, i])/4.0,
+                                (P[k,   j, i] + P[k+1,   j, i] + P[k,   j+1, i] + P[k+1,   j+1, i] +
+                                P[k, j, i+1] + P[k+1, j, i+1] + P[k, j+1, i+1] + P[k+1, j+1, i+1])/8.0))
 
-    ofFile.close()
+        ofFile.close()
+
+    elif fwMode == "HDF5":
+        fName = "Soln_" + "{0:09.5f}.h5".format(time)
+        print "Writing solution file: ", fName
+
+        f = hp.File(fName, "w")
+
+        dset = f.create_dataset("U",data = U)
+        dset = f.create_dataset("V",data = V)
+        dset = f.create_dataset("W",data = W)
+        dset = f.create_dataset("P",data = P)
+
+        f.close()
 
 
 def calculateMetrics(hx, hy, hz):
@@ -687,14 +764,6 @@ def main():
 # N should be of the form 2^n+2 so that staggered pressure points will be 2^n + 3 including ghost points
 sLst = [2**x + 2 for x in range(12)]
 
-# Choose the grid sizes from sLst so as to allow for Multigrid operations
-# [2, 4, 6, 10, 18, 34, 66, 130, 258, 514, 1026, 2050]
-#  0  1  2  3   4   5   6    7    8    9    10    11
-sInd = np.array([5, 5, 5])
-L = sLst[sInd[0]]
-M = sLst[sInd[1]]
-N = sLst[sInd[2]]
-
 # Limits along each direction
 # L - Along X
 # M - Along Y
@@ -702,6 +771,10 @@ N = sLst[sInd[2]]
 # Data stored in arrays accessed by data[1:L, 1:M, 1:N]
 # In Python and C, the rightmost index varies fastest
 # Therefore indices in Z direction vary fastest, then along Y and finally along X
+
+L = sLst[sInd[0]]
+M = sLst[sInd[1]]
+N = sLst[sInd[2]]
 
 # Grid metric arrays. Used by the enitre program at various points
 xColl = np.zeros(L)
@@ -735,34 +808,7 @@ zt_zStag = np.zeros(N-1)    #-- dZt/dZ at all z-grid nodes
 ztzzStag = np.zeros(N-1)    #-- d2Zt/dZ2 at all z-grid nodes
 ztz2Stag = np.zeros(N-1)    #-- (dZt/dZ)**2 at all z-grid nodes
 
-# Tangent-hyperbolic grid stretching factor
-beta = 1.0
-
-# Tolerance value in Jacobi iterations
-tolerance = 0.00001
-
-# Depth of each V-cycle in multigrid
-VDepth = 3
-
-# Number of V-cycles to be computed
-vcCnt = 10
-
-# Number of iterations during pre-smoothing
-preSm = 10
-
-# Number of iterations during post-smoothing
-pstSm = 50
-
-# Number of iterations during smoothing in between prolongation operators
-proSm = 60
-
 time = 0.0
 iCnt = 0
-
-dt = 0.01
-opInt = 1
-fwInt = 0.01
-tMax = 0.1
-Re = 1000
 
 main()
