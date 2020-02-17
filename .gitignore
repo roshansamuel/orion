@@ -1,0 +1,9 @@
+*.h5
+*.swp
+*.swo
+*.out
+*.png
+*.dat
+*.vtk
+*.lay
+resultFiles
