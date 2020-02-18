@@ -12,7 +12,25 @@ import h5py as hp
 sInd = np.array([5, 5, 5])
 
 # Flag for setting periodicity along X and Y directions of the domain
-xyPeriodic = True
+xyPeriodic = False
+
+# Toggle fwMode between ASCII and HDF5  to write output data in corresponding format
+fwMode = "HDF5"
+
+# Time-step
+dt = 0.01
+
+# Number of iterations after which output must be printed to standard I/O
+opInt = 1
+
+# File writing interval
+fwInt = 1.0
+
+# Final time
+tMax = 0.1
+
+# Reynolds number
+Re = 1000
 
 # Tangent-hyperbolic grid stretching factor
 beta = 1.0
@@ -34,24 +52,6 @@ pstSm = 50
 
 # Number of iterations during smoothing in between prolongation operators
 proSm = 60
-
-# Toggle fwMode between ASCII and HDF5  to write output data in corresponding format
-fwMode = "HDF5"
-
-# Time-step
-dt = 0.01
-
-# Number of iterations after which output must be printed to standard I/O
-opInt = 1
-
-# File writing interval
-fwInt = 0.01
-
-# Final time
-tMax = 0.1
-
-# Reynolds number
-Re = 1000
 
 ########################################### END OF USER PARAMETERS ####################################
 
@@ -170,6 +170,7 @@ def imposeUBCs(U):
 
     # Periodic BCs along X and Y directions
     if xyPeriodic:
+        print("Hello")
 
     # No-slip and no-penetration BCs
     else:
@@ -196,17 +197,25 @@ def imposeUBCs(U):
 
 # No-slip and no-penetration BCs
 def imposeVBCs(V):
-    # Left wall
-    V[0, :, :] = -V[1, :, :]
+    global xyPeriodic
 
-    # Right wall
-    V[-1, :, :] = -V[-2, :, :]
+    # Periodic BCs along X and Y directions
+    if xyPeriodic:
+        print("Hello")
 
-    # Front wall
-    V[:, 0, :] = 0.0
+    # No-slip and no-penetration BCs
+    else:
+        # Left wall
+        V[0, :, :] = -V[1, :, :]
 
-    # Back wall
-    V[:, -1, :] = 0.0
+        # Right wall
+        V[-1, :, :] = -V[-2, :, :]
+
+        # Front wall
+        V[:, 0, :] = 0.0
+
+        # Back wall
+        V[:, -1, :] = 0.0
 
     # Bottom wall
     V[:, :, 0] = -V[:, :, 1]
@@ -219,17 +228,25 @@ def imposeVBCs(V):
 
 # No-slip and no-penetration BCs
 def imposeWBCs(W):
-    # Left wall
-    W[0, :, :] = -W[1, :, :]
+    global xyPeriodic
 
-    # Right wall
-    W[-1, :, :] = -W[-2, :, :]
+    # Periodic BCs along X and Y directions
+    if xyPeriodic:
+        print("Hello")
 
-    # Front wall
-    W[:, 0, :] = -W[:, 1, :]
+    # No-slip and no-penetration BCs
+    else:
+        # Left wall
+        W[0, :, :] = -W[1, :, :]
 
-    # Back wall
-    W[:, -1, :] = -W[:, -2, :]
+        # Right wall
+        W[-1, :, :] = -W[-2, :, :]
+
+        # Front wall
+        W[:, 0, :] = -W[:, 1, :]
+
+        # Back wall
+        W[:, -1, :] = -W[:, -2, :]
 
     # Bottom wall
     W[:, :, 0] = 0.0
@@ -241,19 +258,25 @@ def imposeWBCs(W):
 
 
 def imposePBCs(P):
+    global xyPeriodic
+
+    # Periodic BCs along X and Y directions
+    if xyPeriodic:
+        print("Hello")
+
     # Neumann boundary condition on pressure
+    else:
+        # Left wall
+        P[0, :, :] = P[1, :, :]
 
-    # Left wall
-    P[0, :, :] = P[1, :, :]
+        # Right wall
+        P[-1, :, :] = P[-2, :, :]
 
-    # Right wall
-    P[-1, :, :] = P[-2, :, :]
+        # Front wall
+        P[:, 0, :] = P[:, 1, :]
 
-    # Front wall
-    P[:, 0, :] = P[:, 1, :]
-
-    # Back wall
-    P[:, -1, :] = P[:, -2, :]
+        # Back wall
+        P[:, -1, :] = P[:, -2, :]
 
     # Bottom wall
     P[:, :, 0] = P[:, :, 1]
