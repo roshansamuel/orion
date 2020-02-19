@@ -170,7 +170,17 @@ def imposeUBCs(U):
 
     # Periodic BCs along X and Y directions
     if xyPeriodic:
-        print("Hello")
+        # Left wall
+        U[0, :, :] = U[-2, :, :]
+
+        # Right wall
+        U[-1, :, :] = U[1, :, :]
+
+        # Front wall
+        U[:, 0, :] = U[:, -3, :]
+
+        # Back wall
+        U[:, -1, :] = U[:, 2, :]
 
     # No-slip and no-penetration BCs
     else:
@@ -201,7 +211,17 @@ def imposeVBCs(V):
 
     # Periodic BCs along X and Y directions
     if xyPeriodic:
-        print("Hello")
+        # Left wall
+        V[0, :, :] = V[-3, :, :]
+
+        # Right wall
+        V[-1, :, :] = V[2, :, :]
+
+        # Front wall
+        V[:, 0, :] = V[:, -2, :]
+
+        # Back wall
+        V[:, -1, :] = V[:, 1, :]
 
     # No-slip and no-penetration BCs
     else:
@@ -232,7 +252,17 @@ def imposeWBCs(W):
 
     # Periodic BCs along X and Y directions
     if xyPeriodic:
-        print("Hello")
+        # Left wall
+        W[0, :, :] = W[-3, :, :]
+
+        # Right wall
+        W[-1, :, :] = W[2, :, :]
+
+        # Front wall
+        W[:, 0, :] = W[:, -3, :]
+
+        # Back wall
+        W[:, -1, :] = W[:, 2, :]
 
     # No-slip and no-penetration BCs
     else:
@@ -262,7 +292,17 @@ def imposePBCs(P):
 
     # Periodic BCs along X and Y directions
     if xyPeriodic:
-        print("Hello")
+        # Left wall
+        P[0, :, :] = P[-3, :, :]
+
+        # Right wall
+        P[-1, :, :] = P[2, :, :]
+
+        # Front wall
+        P[:, 0, :] = P[:, -3, :]
+
+        # Back wall
+        P[:, -1, :] = P[:, 2, :]
 
     # Neumann boundary condition on pressure
     else:
