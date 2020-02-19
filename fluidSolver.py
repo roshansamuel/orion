@@ -175,22 +175,22 @@ def imposeUBCs(U):
     # No-slip and no-penetration BCs
     else:
         # Left wall
-        U[0, :, :] = 0.0
+        U[0, :, :] = -U[1, :, :]
 
         # Right wall
-        U[-1, :, :] = 0.0
+        U[-1, :, :] = -U[-2, :, :]
 
         # Front wall
-        U[:, 0, :] = -U[:, 1, :]
+        U[:, 0, :] = 0.0
 
         # Back wall
-        U[:, -1, :] = -U[:, -2, :]
+        U[:, -1, :] = 0.0
 
     # Bottom wall
-    U[:, :, 0] = -U[:, :, 1]
+    U[:, :, 0] = 0.0
 
     # Top wall - Moving lid on top
-    U[:, :, -1] = 2.0 - U[:, :, -2]
+    U[:, :, -1] = 1.0
 
     return U
 
@@ -206,22 +206,22 @@ def imposeVBCs(V):
     # No-slip and no-penetration BCs
     else:
         # Left wall
-        V[0, :, :] = -V[1, :, :]
+        V[0, :, :] = 0.0
 
         # Right wall
-        V[-1, :, :] = -V[-2, :, :]
+        V[-1, :, :] = 0.0
 
         # Front wall
-        V[:, 0, :] = 0.0
+        V[:, 0, :] = -V[:, 1, :]
 
         # Back wall
-        V[:, -1, :] = 0.0
+        V[:, -1, :] = -V[:, -2, :]
 
     # Bottom wall
-    V[:, :, 0] = -V[:, :, 1]
+    V[:, :, 0] = 0.0
 
     # Top wall
-    V[:, :, -1] = -V[:, :, -2]
+    V[:, :, -1] = 0.0
 
     return V
 
@@ -237,22 +237,22 @@ def imposeWBCs(W):
     # No-slip and no-penetration BCs
     else:
         # Left wall
-        W[0, :, :] = -W[1, :, :]
+        W[0, :, :] = 0.0
 
         # Right wall
-        W[-1, :, :] = -W[-2, :, :]
+        W[-1, :, :] = 0.0
 
         # Front wall
-        W[:, 0, :] = -W[:, 1, :]
+        W[:, 0, :] = 0.0
 
         # Back wall
-        W[:, -1, :] = -W[:, -2, :]
+        W[:, -1, :] = 0.0
 
     # Bottom wall
-    W[:, :, 0] = 0.0
+    W[:, :, 0] = -W[:, :, 1]
 
     # Top wall
-    W[:, :, -1] = 0.0
+    W[:, :, -1] = -W[:, :, -2]
 
     return W
 
@@ -267,22 +267,22 @@ def imposePBCs(P):
     # Neumann boundary condition on pressure
     else:
         # Left wall
-        P[0, :, :] = P[1, :, :]
+        P[0, :, :] = P[2, :, :]
 
         # Right wall
-        P[-1, :, :] = P[-2, :, :]
+        P[-1, :, :] = P[-3, :, :]
 
         # Front wall
-        P[:, 0, :] = P[:, 1, :]
+        P[:, 0, :] = P[:, 2, :]
 
         # Back wall
-        P[:, -1, :] = P[:, -2, :]
+        P[:, -1, :] = P[:, -3, :]
 
     # Bottom wall
-    P[:, :, 0] = P[:, :, 1]
+    P[:, :, 0] = P[:, :, 2]
 
     # Top wall
-    P[:, :, -1] = P[:, :, -2]
+    P[:, :, -1] = P[:, :, -3]
 
     return P
 
