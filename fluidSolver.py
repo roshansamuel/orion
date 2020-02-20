@@ -11,8 +11,19 @@ import h5py as hp
 #  0  1  2  3   4   5   6    7    8    9    10    11
 sInd = np.array([5, 5, 5])
 
+# Domain lengths
+dLen = [1.0, 1.0, 1.0]
+
+# Tangent-hyperbolic grid stretching factor along X, Y and Z directions respectively
+beta = [1.0, 1.0, 1.0]
+
+# The hydrodynamic problem to be solved can be chosen from below
+# 0 - Lid-driven cavity
+# 1 - Forced channel flow
+probType = 1
+
 # Flag for setting periodicity along X and Y directions of the domain
-xyPeriodic = False
+xyPeriodic = True
 
 # Toggle fwMode between ASCII and HDF5  to write output data in corresponding format
 fwMode = "HDF5"
@@ -32,9 +43,6 @@ tMax = 0.1
 # Reynolds number
 Re = 1000
 
-# Tangent-hyperbolic grid stretching factor
-beta = 1.0
-
 # Tolerance value in Jacobi iterations
 tolerance = 0.00001
 
@@ -48,10 +56,10 @@ vcCnt = 10
 preSm = 10
 
 # Number of iterations during post-smoothing
-pstSm = 50
+pstSm = 40
 
 # Number of iterations during smoothing in between prolongation operators
-proSm = 60
+proSm = 30
 
 ########################################### END OF USER PARAMETERS ####################################
 
@@ -61,6 +69,7 @@ npax = np.newaxis
 def euler(U, V, W, P, hx, hy, hz):
     global dt, Re
     global N, M, L
+    global probType
     global xi_xColl, et_yColl, zt_zColl
     global xi_xStag, et_yStag, zt_zStag
     global xixxColl, xix2Coll, etyyColl, ety2Coll, ztzzColl, ztz2Coll
@@ -86,6 +95,10 @@ def euler(U, V, W, P, hx, hy, hz):
                                                                                                                                 zt_zColl[1:N-1]*D_Zt(W, L, M, N-1, hz)*W[1:L, 1:M, 1:N-1] -
                       0.25*(U[0:L-1, 1:M, 1:N-1] + U[1:L, 1:M, 1:N-1] + U[1:L, 1:M, 2:N] + U[0:L-1, 1:M, 2:N])*xi_xStag[0:L-1, npax, npax]*D_Xi(W, L, M, N-1, hx) -
                       0.25*(V[1:L, 0:M-1, 1:N-1] + V[1:L, 1:M, 1:N-1] + V[1:L, 1:M, 2:N] + V[1:L, 0:M-1, 2:N])*et_yStag[0:M-1, npax]*D_Et(W, L, M, N-1, hy))
+
+    # Add constant pressure gradient forcing for channel flows
+    if probType == 1:
+        Hx[:, :, :] += 1.0
 
     # Calculating guessed values of U implicitly
     Hx[1:L-1, 1:M, 1:N] = U[1:L-1, 1:M, 1:N] + dt*(Hx[1:L-1, 1:M, 1:N] - xi_xColl[1:L-1, npax, npax]*(P[2:L, 1:M, 1:N] - P[1:L-1, 1:M, 1:N])/hx)
@@ -166,6 +179,7 @@ def D_Zt(inpFld, Nx, Ny, Nz, hz):
 
 # No-slip and no-penetration BCs
 def imposeUBCs(U):
+    global probType
     global xyPeriodic
 
     # Periodic BCs along X and Y directions
@@ -199,8 +213,12 @@ def imposeUBCs(U):
     # Bottom wall
     U[:, :, 0] = 0.0
 
-    # Top wall - Moving lid on top
-    U[:, :, -1] = 1.0
+    # Top wall
+    if probType == 0:
+        # Moving lid on top for LDC
+        U[:, :, -1] = 1.0
+    elif probType == 1:
+        U[:, :, -1] = 0.0
 
     return U
 
@@ -732,37 +750,37 @@ def calculateMetrics(hx, hy, hz):
     zt = np.linspace(0.0, 1.0, N)
 
     # Calculate grid and its metrics
-    xColl = [(1.0 - np.tanh(beta*(1.0 - 2.0*i))/np.tanh(beta))/2.0 for i in xi]
-    yColl = [(1.0 - np.tanh(beta*(1.0 - 2.0*i))/np.tanh(beta))/2.0 for i in et]
-    zColl = [(1.0 - np.tanh(beta*(1.0 - 2.0*i))/np.tanh(beta))/2.0 for i in zt]
+    xColl = [dLen[0]*(1.0 - np.tanh(beta[0]*(1.0 - 2.0*i))/np.tanh(beta[0]))/2.0 for i in xi]
+    yColl = [dLen[1]*(1.0 - np.tanh(beta[1]*(1.0 - 2.0*i))/np.tanh(beta[1]))/2.0 for i in et]
+    zColl = [dLen[2]*(1.0 - np.tanh(beta[2]*(1.0 - 2.0*i))/np.tanh(beta[2]))/2.0 for i in zt]
 
-    xStag = [(1.0 - np.tanh(beta*(1.0 - 2.0*i))/np.tanh(beta))/2.0 for i in [(xi[j] + xi[j+1])/2 for j in range(len(xi) - 1)]]
-    yStag = [(1.0 - np.tanh(beta*(1.0 - 2.0*i))/np.tanh(beta))/2.0 for i in [(et[j] + et[j+1])/2 for j in range(len(et) - 1)]]
-    zStag = [(1.0 - np.tanh(beta*(1.0 - 2.0*i))/np.tanh(beta))/2.0 for i in [(zt[j] + zt[j+1])/2 for j in range(len(zt) - 1)]]
+    xStag = [dLen[0]*(1.0 - np.tanh(beta[0]*(1.0 - 2.0*i))/np.tanh(beta[0]))/2.0 for i in [(xi[j] + xi[j+1])/2 for j in range(len(xi) - 1)]]
+    yStag = [dLen[1]*(1.0 - np.tanh(beta[1]*(1.0 - 2.0*i))/np.tanh(beta[1]))/2.0 for i in [(et[j] + et[j+1])/2 for j in range(len(et) - 1)]]
+    zStag = [dLen[2]*(1.0 - np.tanh(beta[2]*(1.0 - 2.0*i))/np.tanh(beta[2]))/2.0 for i in [(zt[j] + zt[j+1])/2 for j in range(len(zt) - 1)]]
 
     # Grid metrics for both staggered and collocated grids
-    xi_xColl = np.array([np.tanh(beta)/(1.0 - (np.tanh(beta)*(1.0 - 2.0*k))**2.0) for k in xColl])
-    xixxColl = np.array([((8.0*k - 4.0)*np.tanh(beta)**3.0)/(beta*(((2.0*k - 1.0)*np.tanh(beta))**2.0 - 1.0)**2.0) for k in xColl])
+    xi_xColl = np.array([np.tanh(beta[0])/(beta[0]*dLen[0]*(1.0 - ((1.0 - 2.0*k/dLen[0])*np.tanh(beta[0]))**2.0)) for k in xColl])
+    xixxColl = np.array([-4.0*(np.tanh(beta[0])**3.0)*(1.0 - 2.0*k/dLen[0])/(beta[0]*dLen[0]*dLen[0]*(1.0 - (np.tanh(beta[0])*(1.0 - 2.0*k/dLen[0])**2.0)**2.0)) for k in xColl])
     xix2Coll = np.array([k*k for k in xi_xColl])
 
-    xi_xStag = np.array([np.tanh(beta)/(1.0 - (np.tanh(beta)*(1.0 - 2.0*k))**2.0) for k in xStag])
-    xixxStag = np.array([((8.0*k - 4.0)*np.tanh(beta)**3.0)/(beta*(((2.0*k - 1.0)*np.tanh(beta))**2.0 - 1.0)**2.0) for k in xStag])
+    xi_xStag = np.array([np.tanh(beta[0])/(beta[0]*dLen[0]*(1.0 - ((1.0 - 2.0*k/dLen[0])*np.tanh(beta[0]))**2.0)) for k in xStag])
+    xixxStag = np.array([-4.0*(np.tanh(beta[0])**3.0)*(1.0 - 2.0*k/dLen[0])/(beta[0]*dLen[0]*dLen[0]*(1.0 - (np.tanh(beta[0])*(1.0 - 2.0*k/dLen[0])**2.0)**2.0)) for k in xStag])
     xix2Stag = np.array([k*k for k in xi_xStag])
 
-    et_yColl = np.array([np.tanh(beta)/(1.0 - (np.tanh(beta)*(1.0 - 2.0*j))**2.0) for j in yColl])
-    etyyColl = np.array([((8.0*j - 4.0)*np.tanh(beta)**3.0)/(beta*(((2.0*j - 1.0)*np.tanh(beta))**2.0 - 1.0)**2.0) for j in yColl])
+    et_yColl = np.array([np.tanh(beta[1])/(beta[1]*dLen[1]*(1.0 - ((1.0 - 2.0*j/dLen[1])*np.tanh(beta[1]))**2.0)) for j in yColl])
+    etyyColl = np.array([-4.0*(np.tanh(beta[1])**3.0)*(1.0 - 2.0*j/dLen[1])/(beta[1]*dLen[1]*dLen[1]*(1.0 - (np.tanh(beta[1])*(1.0 - 2.0*j/dLen[1])**2.0)**2.0)) for j in yColl])
     ety2Coll = np.array([j*j for j in et_yColl])
 
-    et_yStag = np.array([np.tanh(beta)/(1.0 - (np.tanh(beta)*(1.0 - 2.0*j))**2.0) for j in yStag])
-    etyyStag = np.array([((8.0*j - 4.0)*np.tanh(beta)**3.0)/(beta*(((2.0*j - 1.0)*np.tanh(beta))**2.0 - 1.0)**2.0) for j in yStag])
+    et_yStag = np.array([np.tanh(beta[1])/(beta[1]*dLen[1]*(1.0 - ((1.0 - 2.0*j/dLen[1])*np.tanh(beta[1]))**2.0)) for j in yStag])
+    etyyStag = np.array([-4.0*(np.tanh(beta[1])**3.0)*(1.0 - 2.0*j/dLen[1])/(beta[1]*dLen[1]*dLen[1]*(1.0 - (np.tanh(beta[1])*(1.0 - 2.0*j/dLen[1])**2.0)**2.0)) for j in yStag])
     ety2Stag = np.array([j*j for j in et_yStag])
 
-    zt_zColl = np.array([np.tanh(beta)/(1.0 - (np.tanh(beta)*(1.0 - 2.0*i))**2.0) for i in zColl])
-    ztzzColl = np.array([((8.0*i - 4.0)*np.tanh(beta)**3.0)/(beta*(((2.0*i - 1.0)*np.tanh(beta))**2.0 - 1.0)**2.0) for i in zColl])
+    zt_zColl = np.array([np.tanh(beta[2])/(beta[2]*dLen[2]*(1.0 - ((1.0 - 2.0*i/dLen[2])*np.tanh(beta[2]))**2.0)) for i in zColl])
+    ztzzColl = np.array([-4.0*(np.tanh(beta[2])**3.0)*(1.0 - 2.0*i/dLen[2])/(beta[2]*dLen[2]*dLen[2]*(1.0 - (np.tanh(beta[2])*(1.0 - 2.0*i/dLen[2])**2.0)**2.0)) for i in zColl])
     ztz2Coll = np.array([i*i for i in zt_zColl])
 
-    zt_zStag = np.array([np.tanh(beta)/(1.0 - (np.tanh(beta)*(1.0 - 2.0*i))**2.0) for i in zStag])
-    ztzzStag = np.array([((8.0*i - 4.0)*np.tanh(beta)**3.0)/(beta*(((2.0*i - 1.0)*np.tanh(beta))**2.0 - 1.0)**2.0) for i in zStag])
+    zt_zStag = np.array([np.tanh(beta[2])/(beta[2]*dLen[2]*(1.0 - ((1.0 - 2.0*i/dLen[2])*np.tanh(beta[2]))**2.0)) for i in zStag])
+    ztzzStag = np.array([-4.0*(np.tanh(beta[2])**3.0)*(1.0 - 2.0*i/dLen[2])/(beta[2]*dLen[2]*dLen[2]*(1.0 - (np.tanh(beta[2])*(1.0 - 2.0*i/dLen[2])**2.0)**2.0)) for i in zStag])
     ztz2Stag = np.array([i*i for i in zt_zStag])
 
 
@@ -770,6 +788,7 @@ def calculateMetrics(hx, hy, hz):
 def main():
     global dt, tMax, fwInt, opInt
     global time, iCnt
+    global probType
     global L, M, N
 
     # Create and initialize U, V and P arrays
@@ -793,8 +812,15 @@ def main():
 
     calculateMetrics(hx, hy, hz)
 
-    # BC for moving top lid - U = 1.0 on lid and 2.0 on ghost point
-    U[:, :, N] = 2.0
+    if probType == 0:
+        # BC for moving top lid - U = 1.0 on lid
+        U[:, :, N] = 1.0
+    elif probType == 1:
+        #h = np.linspace(0.0, zLen, N+1)
+        #print len(h)
+        #exit()
+        #U = 0.1*np.random.rand(L, M+1, N+1)
+        U[:,:,:] = 1.0
 
     fwTime = 0.0
 
@@ -824,7 +850,7 @@ def main():
 
 ###########################################################################################################################################
 
-# N should be of the form 2^n+2 so that staggered pressure points will be 2^n + 3 including ghost points
+# N should be of the form 2^n + 2 so that there will be 2^n + 3 staggered pressure points, including ghost points
 sLst = [2**x + 2 for x in range(12)]
 
 # Limits along each direction
