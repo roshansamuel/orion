@@ -32,17 +32,21 @@
 ####################################################################################################
 
 # Import all necessary modules
+import multiprocessing as mp
 import numpy as np
 import h5py as hp
 
 ############################################ USER PARAMETERS #######################################
 
-# Choose the grid sizes from sLst so as to allow for Multigrid operations
+# Set the number of processors for parallel computing with multiprocessing module
+nProcs = 8
+
+# Choose the grid sizes as indices from below list so that there are 2^n + 2 grid points
 # [2, 4, 6, 10, 18, 34, 66, 130, 258, 514, 1026, 2050]
 #  0  1  2  3   4   5   6    7    8    9    10    11
 sInd = np.array([5, 5, 5])
 
-# Domain lengths
+# Domain lengths - along X, Y and Z directions respectively
 dLen = [1.0, 1.0, 1.0]
 
 # Tangent-hyperbolic grid stretching factor along X, Y and Z directions respectively
@@ -51,10 +55,10 @@ beta = [1.0, 1.0, 1.0]
 # The hydrodynamic problem to be solved can be chosen from below
 # 0 - Lid-driven cavity
 # 1 - Forced channel flow
-probType = 1
+probType = 0
 
 # Flag for setting periodicity along X and Y directions of the domain
-xyPeriodic = True
+xyPeriodic = False
 
 # Toggle fwMode between ASCII and HDF5  to write output data in corresponding format
 fwMode = "HDF5"
@@ -97,35 +101,23 @@ proSm = 30
 # Redefine frequently used numpy object
 npax = np.newaxis
 
-def euler(U, V, W, P, hx, hy, hz):
+def euler():
     global dt, Re
     global N, M, L
     global probType
+    global U, V, W, P
+    global Hx, Hy, Hz
+    global hx, hy, hz
     global xi_xColl, et_yColl, zt_zColl
     global xi_xStag, et_yStag, zt_zStag
-    global xixxColl, xix2Coll, etyyColl, ety2Coll, ztzzColl, ztz2Coll
-    global xixxStag, xix2Stag, etyyStag, ety2Stag, ztzzStag, ztz2Stag
 
-    Hx = np.zeros([L, M+1, N+1])
-    Hx[1:L-1, 1:M, 1:N] = ((xixxColl[1:L-1, npax, npax]*D_Xi(U, L-1, M, N, hx) + etyyStag[0:M-1, npax]*D_Et(U, L-1, M, N, hy) + ztzzStag[0:N-1]*D_Zt(U, L-1, M, N, hz))/Re +
-                           (xix2Coll[1:L-1, npax, npax]*DDXi(U, L-1, M, N, hx) + ety2Stag[0:M-1, npax]*DDEt(U, L-1, M, N, hy) + ztz2Stag[0:N-1]*DDZt(U, L-1, M, N, hz))*0.5/Re -
-                            xi_xColl[1:L-1, npax, npax]*D_Xi(U, L-1, M, N, hx)*U[1:L-1, 1:M, 1:N] -
-                      0.25*(V[1:L-1, 0:M-1, 1:N] + V[1:L-1, 1:M, 1:N] + V[2:L, 1:M, 1:N] + V[2:L, 0:M-1, 1:N])*et_yStag[0:M-1, npax]*D_Et(U, L-1, M, N, hy) - 
-                      0.25*(W[1:L-1, 1:M, 0:N-1] + W[1:L-1, 1:M, 1:N] + W[2:L, 1:M, 1:N] + W[2:L, 1:M, 0:N-1])*zt_zStag[0:N-1]*D_Zt(U, L-1, M, N, hz))
+    Hx.fill(0.0)
+    Hy.fill(0.0)
+    Hz.fill(0.0)
 
-    Hy = np.zeros([L+1, M, N+1])
-    Hy[1:L, 1:M-1, 1:N] = ((xixxStag[0:L-1, npax, npax]*D_Xi(V, L, M-1, N, hx) + etyyColl[1:M-1, npax]*D_Et(V, L, M-1, N, hy) + ztzzStag[0:N-1]*D_Zt(V, L, M-1, N, hz))/Re +
-                           (xix2Stag[0:L-1, npax, npax]*DDXi(V, L, M-1, N, hx) + ety2Coll[1:M-1, npax]*DDEt(V, L, M-1, N, hy) + ztz2Stag[0:N-1]*DDZt(V, L, M-1, N, hz))*0.5/Re -
-                                                                     et_yColl[1:M-1, npax]*D_Et(V, L, M-1, N, hy)*V[1:L, 1:M-1, 1:N] -
-                      0.25*(U[0:L-1, 1:M-1, 1:N] + U[1:L, 1:M-1, 1:N] + U[1:L, 2:M, 1:N] + U[0:L-1, 2:M, 1:N])*xi_xStag[0:L-1, npax, npax]*D_Xi(V, L, M-1, N, hx) -
-                      0.25*(W[1:L, 1:M-1, 0:N-1] + W[1:L, 1:M-1, 1:N] + W[1:L, 2:M, 1:N] + W[1:L, 2:M, 0:N-1])*zt_zStag[0:N-1]*D_Zt(V, L, M-1, N, hz))
-
-    Hz = np.zeros([L+1, M+1, N])
-    Hz[1:L, 1:M, 1:N-1] = ((xixxStag[0:L-1, npax, npax]*D_Xi(W, L, M, N-1, hx) + etyyStag[0:M-1, npax]*D_Et(W, L, M, N-1, hy) + ztzzColl[1:N-1]*D_Zt(W, L, M, N-1, hz))/Re +
-                           (xix2Stag[0:L-1, npax, npax]*DDXi(W, L, M, N-1, hx) + ety2Stag[0:M-1, npax]*DDEt(W, L, M, N-1, hy) + ztz2Coll[1:N-1]*DDZt(W, L, M, N-1, hz))*0.5/Re -
-                                                                                                                                zt_zColl[1:N-1]*D_Zt(W, L, M, N-1, hz)*W[1:L, 1:M, 1:N-1] -
-                      0.25*(U[0:L-1, 1:M, 1:N-1] + U[1:L, 1:M, 1:N-1] + U[1:L, 1:M, 2:N] + U[0:L-1, 1:M, 2:N])*xi_xStag[0:L-1, npax, npax]*D_Xi(W, L, M, N-1, hx) -
-                      0.25*(V[1:L, 0:M-1, 1:N-1] + V[1:L, 1:M, 1:N-1] + V[1:L, 1:M, 2:N] + V[1:L, 0:M-1, 2:N])*et_yStag[0:M-1, npax]*D_Et(W, L, M, N-1, hy))
+    computeNLinDiff_X()
+    computeNLinDiff_Y()
+    computeNLinDiff_Z()
 
     # Add constant pressure gradient forcing for channel flows
     if probType == 1:
@@ -133,22 +125,22 @@ def euler(U, V, W, P, hx, hy, hz):
 
     # Calculating guessed values of U implicitly
     Hx[1:L-1, 1:M, 1:N] = U[1:L-1, 1:M, 1:N] + dt*(Hx[1:L-1, 1:M, 1:N] - xi_xColl[1:L-1, npax, npax]*(P[2:L, 1:M, 1:N] - P[1:L-1, 1:M, 1:N])/hx)
-    Up = uJacobi(Hx, hx, hy, hz)
+    Up = uJacobi(Hx)
 
     # Calculating guessed values of V implicitly
     Hy[1:L, 1:M-1, 1:N] = V[1:L, 1:M-1, 1:N] + dt*(Hy[1:L, 1:M-1, 1:N] - et_yColl[1:M-1, npax]*(P[1:L, 2:M, 1:N] - P[1:L, 1:M-1, 1:N])/hy)
-    Vp = vJacobi(Hy, hx, hy, hz)
+    Vp = vJacobi(Hy)
 
     # Calculating guessed values of W implicitly
     Hz[1:L, 1:M, 1:N-1] = W[1:L, 1:M, 1:N-1] + dt*(Hz[1:L, 1:M, 1:N-1] - zt_zColl[1:N-1]*(P[1:L, 1:M, 2:N] - P[1:L, 1:M, 1:N-1])/hz)
-    Wp = wJacobi(Hz, hx, hy, hz)
+    Wp = wJacobi(Hz)
 
     # Calculating pressure correction term
     rhs = np.zeros([L+1, M+1, N+1])
     rhs[1:L, 1:M, 1:N] = (xi_xStag[0:L-1, npax, npax]*(Up[1:L, 1:M, 1:N] - Up[0:L-1, 1:M, 1:N])/hx +
                           et_yStag[0:M-1, npax]*(Vp[1:L, 1:M, 1:N] - Vp[1:L, 0:M-1, 1:N])/hy +
                           zt_zStag[0:N-1]*(Wp[1:L, 1:M, 1:N] - Wp[1:L, 1:M, 0:N-1])/hz)/dt
-    Pp = multigrid(rhs, hx, hy, hz)
+    Pp = multigrid(rhs)
 
     # Add pressure correction.
     P = P + Pp
@@ -163,45 +155,94 @@ def euler(U, V, W, P, hx, hy, hz):
     V = imposeVBCs(V)
     W = imposeWBCs(W)
 
-    return U, V, W, P
+
+def computeNLinDiff_X():
+    global Hx
+    global N, M, L
+    global U, V, W
+    global xixxColl, xix2Coll, etyyStag, ety2Stag, ztzzStag, ztz2Stag
+
+    Hx[1:L-1, 1:M, 1:N] = ((xixxColl[1:L-1, npax, npax]*D_Xi(U, L-1, M, N) + etyyStag[0:M-1, npax]*D_Et(U, L-1, M, N) + ztzzStag[0:N-1]*D_Zt(U, L-1, M, N))/Re +
+                           (xix2Coll[1:L-1, npax, npax]*DDXi(U, L-1, M, N) + ety2Stag[0:M-1, npax]*DDEt(U, L-1, M, N) + ztz2Stag[0:N-1]*DDZt(U, L-1, M, N))*0.5/Re -
+                            xi_xColl[1:L-1, npax, npax]*D_Xi(U, L-1, M, N)*U[1:L-1, 1:M, 1:N] -
+                      0.25*(V[1:L-1, 0:M-1, 1:N] + V[1:L-1, 1:M, 1:N] + V[2:L, 1:M, 1:N] + V[2:L, 0:M-1, 1:N])*et_yStag[0:M-1, npax]*D_Et(U, L-1, M, N) - 
+                      0.25*(W[1:L-1, 1:M, 0:N-1] + W[1:L-1, 1:M, 1:N] + W[2:L, 1:M, 1:N] + W[2:L, 1:M, 0:N-1])*zt_zStag[0:N-1]*D_Zt(U, L-1, M, N))
 
 
-def DDXi(inpFld, Nx, Ny, Nz, hx):
+def computeNLinDiff_Y():
+    global Hy
+    global N, M, L
+    global U, V, W
+    global xixxStag, xix2Stag, etyyColl, ety2Coll, ztzzStag, ztz2Stag
+
+    Hy[1:L, 1:M-1, 1:N] = ((xixxStag[0:L-1, npax, npax]*D_Xi(V, L, M-1, N) + etyyColl[1:M-1, npax]*D_Et(V, L, M-1, N) + ztzzStag[0:N-1]*D_Zt(V, L, M-1, N))/Re +
+                           (xix2Stag[0:L-1, npax, npax]*DDXi(V, L, M-1, N) + ety2Coll[1:M-1, npax]*DDEt(V, L, M-1, N) + ztz2Stag[0:N-1]*DDZt(V, L, M-1, N))*0.5/Re -
+                                                                             et_yColl[1:M-1, npax]*D_Et(V, L, M-1, N)*V[1:L, 1:M-1, 1:N] -
+                      0.25*(U[0:L-1, 1:M-1, 1:N] + U[1:L, 1:M-1, 1:N] + U[1:L, 2:M, 1:N] + U[0:L-1, 2:M, 1:N])*xi_xStag[0:L-1, npax, npax]*D_Xi(V, L, M-1, N) -
+                      0.25*(W[1:L, 1:M-1, 0:N-1] + W[1:L, 1:M-1, 1:N] + W[1:L, 2:M, 1:N] + W[1:L, 2:M, 0:N-1])*zt_zStag[0:N-1]*D_Zt(V, L, M-1, N))
+
+
+def computeNLinDiff_Z():
+    global Hz
+    global N, M, L
+    global U, V, W
+    global xixxStag, xix2Stag, etyyStag, ety2Stag, ztzzColl, ztz2Coll
+
+    Hz[1:L, 1:M, 1:N-1] = ((xixxStag[0:L-1, npax, npax]*D_Xi(W, L, M, N-1) + etyyStag[0:M-1, npax]*D_Et(W, L, M, N-1) + ztzzColl[1:N-1]*D_Zt(W, L, M, N-1))/Re +
+                           (xix2Stag[0:L-1, npax, npax]*DDXi(W, L, M, N-1) + ety2Stag[0:M-1, npax]*DDEt(W, L, M, N-1) + ztz2Coll[1:N-1]*DDZt(W, L, M, N-1))*0.5/Re -
+                                                                                                                        zt_zColl[1:N-1]*D_Zt(W, L, M, N-1)*W[1:L, 1:M, 1:N-1] -
+                      0.25*(U[0:L-1, 1:M, 1:N-1] + U[1:L, 1:M, 1:N-1] + U[1:L, 1:M, 2:N] + U[0:L-1, 1:M, 2:N])*xi_xStag[0:L-1, npax, npax]*D_Xi(W, L, M, N-1) -
+                      0.25*(V[1:L, 0:M-1, 1:N-1] + V[1:L, 1:M, 1:N-1] + V[1:L, 1:M, 2:N] + V[1:L, 0:M-1, 2:N])*et_yStag[0:M-1, npax]*D_Et(W, L, M, N-1))
+
+
+def DDXi(inpFld, Nx, Ny, Nz):
+    global hx
+
     outFld = np.zeros_like(inpFld)
     outFld[1:Nx, 1:Ny, 1:Nz] = (inpFld[0:Nx-1, 1:Ny, 1:Nz] - 2.0*inpFld[1:Nx, 1:Ny, 1:Nz] + inpFld[2:Nx+1, 1:Ny, 1:Nz])/(hx*hx)
 
     return outFld[1:Nx, 1:Ny, 1:Nz]
 
 
-def DDEt(inpFld, Nx, Ny, Nz, hy):
+def DDEt(inpFld, Nx, Ny, Nz):
+    global hy
+
     outFld = np.zeros_like(inpFld)
     outFld[1:Nx, 1:Ny, 1:Nz] = (inpFld[1:Nx, 0:Ny-1, 1:Nz] - 2.0*inpFld[1:Nx, 1:Ny, 1:Nz] + inpFld[1:Nx, 2:Ny+1, 1:Nz])/(hy*hy)
 
     return outFld[1:Nx, 1:Ny, 1:Nz]
 
 
-def DDZt(inpFld, Nx, Ny, Nz, hz):
+def DDZt(inpFld, Nx, Ny, Nz):
+    global hz
+
     outFld = np.zeros_like(inpFld)
     outFld[1:Nx, 1:Ny, 1:Nz] = (inpFld[1:Nx, 1:Ny, 0:Nz-1] - 2.0*inpFld[1:Nx, 1:Ny, 1:Nz] + inpFld[1:Nx, 1:Ny, 2:Nz+1])/(hz*hz)
 
     return outFld[1:Nx, 1:Ny, 1:Nz]
 
 
-def D_Xi(inpFld, Nx, Ny, Nz, hx):
+def D_Xi(inpFld, Nx, Ny, Nz):
+    global hx
+
     outFld = np.zeros_like(inpFld)
     outFld[1:Nx, 1:Ny, 1:Nz] = (inpFld[2:Nx+1, 1:Ny, 1:Nz] - inpFld[0:Nx-1, 1:Ny, 1:Nz])*0.5/hx
 
     return outFld[1:Nx, 1:Ny, 1:Nz]
 
 
-def D_Et(inpFld, Nx, Ny, Nz, hy):
+def D_Et(inpFld, Nx, Ny, Nz):
+    global hy
+
     outFld = np.zeros_like(inpFld)
     outFld[1:Nx, 1:Ny, 1:Nz] = (inpFld[1:Nx, 2:Ny+1, 1:Nz] - inpFld[1:Nx, 0:Ny-1, 1:Nz])*0.5/hy
 
     return outFld[1:Nx, 1:Ny, 1:Nz]
 
 
-def D_Zt(inpFld, Nx, Ny, Nz, hz):
+def D_Zt(inpFld, Nx, Ny, Nz):
+    global hz
+
     outFld = np.zeros_like(inpFld)
     outFld[1:Nx, 1:Ny, 1:Nz] = (inpFld[1:Nx, 1:Ny, 2:Nz+1] - inpFld[1:Nx, 1:Ny, 0:Nz-1])*0.5/hz
 
@@ -377,10 +418,11 @@ def imposePBCs(P):
 
 
 #Jacobi iterative solver for U
-def uJacobi(rho, hx, hy, hz):
-    global N, M
+def uJacobi(rho):
     global Re, dt
+    global L, N, M
     global tolerance
+    global hx, hy, hz
     global iCnt, opInt
     global xix2Coll, ety2Stag, ztz2Stag
 
@@ -403,9 +445,9 @@ def uJacobi(rho, hx, hy, hz):
         prev_sol = np.copy(next_sol)
 
         test_sol[1:L-1, 1:M, 1:N] = next_sol[1:L-1,   1:M, 1:N] - (
-                                    xix2Coll[1:L-1, npax, npax]*DDXi(next_sol, L-1, M, N, hx) + \
-                                    ety2Stag[0:M-1, npax]*DDEt(next_sol, L-1, M, N, hy) + \
-                                    ztz2Stag[0:N-1]*DDZt(next_sol, L-1, M, N, hz))*0.5*dt/Re
+                                    xix2Coll[1:L-1, npax, npax]*DDXi(next_sol, L-1, M, N) + \
+                                    ety2Stag[0:M-1, npax]*DDEt(next_sol, L-1, M, N) + \
+                                    ztz2Stag[0:N-1]*DDZt(next_sol, L-1, M, N))*0.5*dt/Re
 
         error_temp = np.fabs(rho[1:L-1, 1:M, 1:N] - test_sol[1:L-1, 1:M, 1:N])
         maxErr = np.amax(error_temp)
@@ -424,10 +466,11 @@ def uJacobi(rho, hx, hy, hz):
 
 
 #Jacobi iterative solver for V
-def vJacobi(rho, hx, hy, hz):
-    global N, M
+def vJacobi(rho):
     global Re, dt
+    global L, N, M
     global tolerance
+    global hx, hy, hz
     global iCnt, opInt
     global xix2Stag, ety2Coll, ztz2Stag
 
@@ -450,9 +493,9 @@ def vJacobi(rho, hx, hy, hz):
         prev_sol = np.copy(next_sol)
 
         test_sol[1:L, 1:M-1, 1:N] = next_sol[  1:L, 1:M-1, 1:N] - (
-                                    xix2Stag[0:L-1, npax, npax]*DDXi(next_sol, L, M-1, N, hx) + \
-                                    ety2Coll[1:M-1, npax]*DDEt(next_sol, L, M-1, N, hy) + \
-                                    ztz2Stag[0:N-1]*DDZt(next_sol, L, M-1, N, hz))*0.5*dt/Re
+                                    xix2Stag[0:L-1, npax, npax]*DDXi(next_sol, L, M-1, N) + \
+                                    ety2Coll[1:M-1, npax]*DDEt(next_sol, L, M-1, N) + \
+                                    ztz2Stag[0:N-1]*DDZt(next_sol, L, M-1, N))*0.5*dt/Re
 
         error_temp = np.fabs(rho[1:L, 1:M-1, 1:N] - test_sol[1:L, 1:M-1, 1:N])
         maxErr = np.amax(error_temp)
@@ -471,10 +514,11 @@ def vJacobi(rho, hx, hy, hz):
 
 
 #Jacobi iterative solver for W
-def wJacobi(rho, hx, hy, hz):
-    global N, M
+def wJacobi(rho):
     global Re, dt
+    global L, N, M
     global tolerance
+    global hx, hy, hz
     global iCnt, opInt
     global xix2Stag, ety2Stag, ztz2Coll
 
@@ -497,9 +541,9 @@ def wJacobi(rho, hx, hy, hz):
         prev_sol = np.copy(next_sol)
 
         test_sol[1:L, 1:M, 1:N-1] = next_sol[  1:L, 1:M, 1:N-1] - (
-                                    xix2Stag[0:L-1, npax, npax]*DDXi(next_sol, L, M, N-1, hx) + \
-                                    ety2Stag[0:M-1, npax]*DDEt(next_sol, L, M, N-1, hy) + \
-                                    ztz2Coll[1:N-1]*DDZt(next_sol, L, M, N-1, hz))*0.5*dt/Re
+                                    xix2Stag[0:L-1, npax, npax]*DDXi(next_sol, L, M, N-1) + \
+                                    ety2Stag[0:M-1, npax]*DDEt(next_sol, L, M, N-1) + \
+                                    ztz2Coll[1:N-1]*DDZt(next_sol, L, M, N-1))*0.5*dt/Re
 
         error_temp = np.fabs(rho[1:L, 1:M, 1:N-1] - test_sol[1:L, 1:M, 1:N-1])
         maxErr = np.amax(error_temp)
@@ -518,29 +562,30 @@ def wJacobi(rho, hx, hy, hz):
 
 
 #Multigrid solver
-def multigrid(H, hx, hy, hz):
+def multigrid(H):
     global N, M, L, vcCnt
 
-    P = np.zeros([L+1, M+1, N+1])
+    Pp = np.zeros([L+1, M+1, N+1])
     chMat = np.ones([L+1, M+1, N+1])
     for i in range(vcCnt):
-        P = v_cycle(P, H, hx, hy, hz)
-        chMat = laplace(P, hx, hy, hz)
+        Pp = v_cycle(Pp, H)
+        chMat = laplace(Pp)
 
     print "Error after multigrid is ", np.amax(np.abs(H[1:L, 1:M, 1:N] - chMat[1:L, 1:M, 1:N]))
 
-    return P
+    return Pp
 
 
 #Multigrid solution without the use of recursion
-def v_cycle(P, H, hx, hy, hz):
+def v_cycle(P, H):
+    global hx, hy, hz
     global sInd, VDepth
     global preSm, pstSm, proSm
 
     # Pre-smoothing
     P = smooth(P, H, hx, hy, hz, preSm, 0)
 
-    H_rsdl = H - laplace(P, hx, hy, hz)
+    H_rsdl = H - laplace(P)
 
     # Restriction operations
     for i in range(VDepth):
@@ -663,12 +708,12 @@ def solve(rho, hx, hy, hz):
             (hx*hx)*(hy*hy)*ztz2Stag[0::2**VDepth]))
 
         solLap = np.zeros_like(next_sol)
-        solLap[1:L, 1:M, 1:N] = xix2Stag[0::2**VDepth, npax, npax]*DDXi(next_sol, L, M, N, hx) + \
-                                xixxStag[0::2**VDepth, npax, npax]*D_Xi(next_sol, L, M, N, hx) + \
-                                ety2Stag[0::2**VDepth, npax]*DDEt(next_sol, L, M, N, hy) + \
-                                etyyStag[0::2**VDepth, npax]*D_Et(next_sol, L, M, N, hy) + \
-                                ztz2Stag[0::2**VDepth]*DDZt(next_sol, L, M, N, hz) + \
-                                ztzzStag[0::2**VDepth]*D_Zt(next_sol, L, M, N, hz)
+        solLap[1:L, 1:M, 1:N] = xix2Stag[0::2**VDepth, npax, npax]*DDXi(next_sol, L, M, N)/((2**VDepth)**2) + \
+                                xixxStag[0::2**VDepth, npax, npax]*D_Xi(next_sol, L, M, N)/(2**VDepth) + \
+                                ety2Stag[0::2**VDepth, npax]*DDEt(next_sol, L, M, N)/((2**VDepth)**2) + \
+                                etyyStag[0::2**VDepth, npax]*D_Et(next_sol, L, M, N)/(2**VDepth) + \
+                                ztz2Stag[0::2**VDepth]*DDZt(next_sol, L, M, N)/((2**VDepth)**2) + \
+                                ztzzStag[0::2**VDepth]*D_Zt(next_sol, L, M, N)/(2**VDepth)
 
         error_temp = np.abs(rho[1:L, 1:M, 1:N] - solLap[1:L, 1:M, 1:N])
         maxErr = np.amax(error_temp)
@@ -686,35 +731,36 @@ def solve(rho, hx, hy, hz):
     return prev_sol
 
 
-def laplace(function, hx, hy, hz):
+def laplace(function):
     '''
 Function to calculate the Laplacian for a given field of values.
 INPUT:  function: 3D matrix of double precision values
-        hx, hy, hz: Grid spacing of the uniform grid along x, y and z directions
 OUTPUT: gradient: 3D matrix of double precision values with same size as input matrix
     '''
+    global hx, hy, hz
 
     # 1 subtracted from shape to account for ghost points
     [L, M, N] = np.array(np.shape(function)) - 1
     gradient = np.zeros_like(function)
 
-    gradient[1:L, 1:M, 1:N] = xix2Stag[0:L-1, npax, npax]*DDXi(function, L, M, N, hx) + \
-                              xixxStag[0:L-1, npax, npax]*D_Xi(function, L, M, N, hx) + \
-                                    ety2Stag[0:M-1, npax]*DDEt(function, L, M, N, hy) + \
-                                    etyyStag[0:M-1, npax]*D_Et(function, L, M, N, hy) + \
-                                          ztz2Stag[0:N-1]*DDZt(function, L, M, N, hz) + \
-                                          ztzzStag[0:N-1]*D_Zt(function, L, M, N, hz)
+    gradient[1:L, 1:M, 1:N] = xix2Stag[0:L-1, npax, npax]*DDXi(function, L, M, N) + \
+                              xixxStag[0:L-1, npax, npax]*D_Xi(function, L, M, N) + \
+                                    ety2Stag[0:M-1, npax]*DDEt(function, L, M, N) + \
+                                    etyyStag[0:M-1, npax]*D_Et(function, L, M, N) + \
+                                          ztz2Stag[0:N-1]*DDZt(function, L, M, N) + \
+                                          ztzzStag[0:N-1]*D_Zt(function, L, M, N)
 
     return gradient
 
 
-def getDiv(U, V, W):
+def getDiv():
     '''
 Function to calculate the divergence within the domain (excluding walls)
 INPUT:  U, V, W: Velocity values
 OUTPUT: The maximum value of divergence in double precision
     '''
     global N, M, L
+    global U, V, W
     global xColl, yColl, zColl
 
     divMat = np.zeros([L+1, M+1, N+1])
@@ -728,9 +774,10 @@ OUTPUT: The maximum value of divergence in double precision
     return np.unravel_index(divMat.argmax(), divMat.shape), np.amax(divMat)
 
 
-def writeSoln(U, V, W, P, time):
+def writeSoln(time):
     global fwMode
     global N, M, L
+    global U, V, W, P
     global xColl, yColl, zColl
 
     if fwMode == "ASCII":
@@ -759,15 +806,15 @@ def writeSoln(U, V, W, P, time):
 
         f = hp.File(fName, "w")
 
-        dset = f.create_dataset("U",data = U)
-        dset = f.create_dataset("V",data = V)
-        dset = f.create_dataset("W",data = W)
-        dset = f.create_dataset("P",data = P)
+        dset = f.create_dataset("U", data = U)
+        dset = f.create_dataset("V", data = V)
+        dset = f.create_dataset("W", data = W)
+        dset = f.create_dataset("P", data = P)
 
         f.close()
 
 
-def calculateMetrics(hx, hy, hz):
+def calculateMetrics():
     global beta
     global xColl, yColl, zColl
     global xStag, yStag, zStag
@@ -821,27 +868,17 @@ def main():
     global time, iCnt
     global probType
     global L, M, N
+    global nProcs
+    global U
 
-    # Create and initialize U, V and P arrays
-    # The arrays have two extra points
-    # These act as ghost points on either sides of the domain
-    P = np.ones([L+1, M+1, N+1])
+    maxProcs = mp.cpu_count()
+    if nProcs > maxProcs:
+        print("\nERROR: " + str(nProcs) + " exceeds the available number of processors (" + str(maxProcs) + ")\n")
+        exit(0)
+    else:
+        print("\nUsing " + str(nProcs) + " out of " + str(maxProcs) + " processors\n")
 
-    # U is staggered in Y and Z directions and hence has one extra point along these directions
-    U = np.zeros([L, M+1, N+1])
-
-    # V is staggered in X and Z directions and hence has one extra point along these directions
-    V = np.zeros([L+1, M, N+1])
-
-    # W is staggered in X and Y directions and hence has one extra point along these directions
-    W = np.zeros([L+1, M+1, N])
-
-    # Define grid spacings
-    hx = 1.0/(L-1)
-    hy = 1.0/(M-1)
-    hz = 1.0/(N-1)
-
-    calculateMetrics(hx, hy, hz)
+    calculateMetrics()
 
     if probType == 0:
         # BC for moving top lid - U = 1.0 on lid
@@ -851,18 +888,18 @@ def main():
         #print len(h)
         #exit()
         #U = 0.1*np.random.rand(L, M+1, N+1)
-        U[:,:,:] = 1.0
+        U[:, :, :] = 1.0
 
     fwTime = 0.0
 
     while True:
         if abs(fwTime - time) < 0.5*dt:
-            writeSoln(U, V, W, P, time)
+            writeSoln(time)
             fwTime += fwInt
 
-        U, V, W, P = euler(U, V, W, P, hx, hy, hz)
+        euler()
 
-        maxDiv = getDiv(U, V, W)
+        maxDiv = getDiv()
         if maxDiv[1] > 10.0:
             print "ERROR: Divergence has exceeded permissible limits. Aborting"
             quit()
@@ -895,6 +932,11 @@ sLst = [2**x + 2 for x in range(12)]
 L = sLst[sInd[0]]
 M = sLst[sInd[1]]
 N = sLst[sInd[2]]
+
+# Define grid spacings
+hx = 1.0/(L-1)
+hy = 1.0/(M-1)
+hz = 1.0/(N-1)
 
 # Grid metric arrays. Used by the enitre program at various points
 xColl = np.zeros(L)
@@ -930,5 +972,28 @@ ztz2Stag = np.zeros(N-1)    #-- (dZt/dZ)**2 at all z-grid nodes
 
 time = 0.0
 iCnt = 0
+
+# Create list of ranges (in terms of indices) along X direction, which is the direction of parallelization
+rangeDivs = [int(x) for x in np.linspace(1, L-1, nProcs+1)]
+rListColl = [(rangeDivs[x], rangeDivs[x+1]) for x in range(nProcs)]
+rangeDivs = [int(x) for x in np.linspace(1, L, nProcs+1)]
+rListStag = [(rangeDivs[x], rangeDivs[x+1]) for x in range(nProcs)]
+
+# Create and initialize U, V and P arrays
+# The arrays have two extra points
+# These act as ghost points on either sides of the domain
+P = np.ones([L+1, M+1, N+1])
+
+# U and Hx (RHS of X component of NSE) are staggered in Y and Z directions and hence has one extra point along these directions
+U = np.zeros([L, M+1, N+1])
+Hx = np.zeros([L, M+1, N+1])
+
+# V and Hy (RHS of Y component of NSE) are staggered in X and Z directions and hence has one extra point along these directions
+V = np.zeros([L+1, M, N+1])
+Hy = np.zeros([L+1, M, N+1])
+
+# W and Hz (RHS of Z component of NSE) are staggered in X and Y directions and hence has one extra point along these directions
+W = np.zeros([L+1, M+1, N])
+Hz = np.zeros([L+1, M+1, N])
 
 main()
