@@ -105,6 +105,7 @@ def euler():
     global dt, Re
     global N, M, L
     global probType
+    global rListColl
     global U, V, W, P
     global Hx, Hy, Hz
     global hx, hy, hz
@@ -118,6 +119,17 @@ def euler():
     computeNLinDiff_X()
     computeNLinDiff_Y()
     computeNLinDiff_Z()
+
+    ############
+    pool = mp.Pool(processes=nProcs)
+    poolRes = [pool.apply_async(addTurbViscosity, args=(x[0], x[1])) for x in rListColl]
+    cosVals = [x.get() for x in poolRes]
+    print(cosVals[0][:,0,5,5])
+    exit(0)
+    # Flatten the lists
+    #cos1 = [x for y in cosVals for x in y[0]]
+    #cos2 = [x for y in cosVals for x in y[1]]
+    #cos3 = [x for y in cosVals for x in y[2]]
 
     # Add constant pressure gradient forcing for channel flows
     if probType == 1:
@@ -421,6 +433,7 @@ def imposePBCs(P):
 def uJacobi(rho):
     global Re, dt
     global L, N, M
+    global maxCount
     global tolerance
     global hx, hy, hz
     global iCnt, opInt
@@ -457,7 +470,7 @@ def uJacobi(rho):
             break
 
         jCnt += 1
-        if jCnt > 10*N*M*L:
+        if jCnt > maxCount:
             print "ERROR: Jacobi not converging in U. Aborting"
             print "Maximum error: ", maxErr
             quit()
@@ -469,6 +482,7 @@ def uJacobi(rho):
 def vJacobi(rho):
     global Re, dt
     global L, N, M
+    global maxCount
     global tolerance
     global hx, hy, hz
     global iCnt, opInt
@@ -505,7 +519,7 @@ def vJacobi(rho):
             break
 
         jCnt += 1
-        if jCnt > 10*N*M*L:
+        if jCnt > maxCount:
             print "ERROR: Jacobi not converging in V. Aborting"
             print "Maximum error: ", maxErr
             quit()
@@ -517,6 +531,7 @@ def vJacobi(rho):
 def wJacobi(rho):
     global Re, dt
     global L, N, M
+    global maxCount
     global tolerance
     global hx, hy, hz
     global iCnt, opInt
@@ -553,12 +568,15 @@ def wJacobi(rho):
             break
 
         jCnt += 1
-        if jCnt > 10*N*M*L:
+        if jCnt > maxCount:
             print "ERROR: Jacobi not converging in W. Aborting"
             print "Maximum error: ", maxErr
             quit()
 
     return prev_sol
+
+
+######################################## MULTIGRID SOLVER ##########################################
 
 
 #Multigrid solver
@@ -753,6 +771,50 @@ OUTPUT: gradient: 3D matrix of double precision values with same size as input m
     return gradient
 
 
+############################################ LES CODE ##############################################
+
+
+def addTurbViscosity(xStr, xEnd):
+    global U, V, W
+    global L, M, N
+    global hx, hy, hz
+
+    xInd = 0
+    subNx = xEnd - xStr
+
+    vList = np.zeros((3, subNx, M-2, N-2))
+
+    for i in range(xStr, xEnd):
+        for j in range(1, M-1):
+            for k in range(1, N-1):
+                dudx = (U[i+1, j, k] - U[i, j, k])/hx
+                dudy = (U[i, j+1, k] - U[i, j, k])/hy
+                dudz = (U[i, j, k+1] - U[i, j, k])/hz
+
+                dvdx = (V[i+1, j, k] - V[i, j, k])/hx
+                dvdy = (V[i, j+1, k] - V[i, j, k])/hy
+                dvdz = (V[i, j, k+1] - V[i, j, k])/hz
+
+                dwdx = (W[i+1, j, k] - W[i, j, k])/hx
+                dwdy = (W[i, j+1, k] - W[i, j, k])/hy
+                dwdz = (W[i, j, k+1] - W[i, j, k])/hz
+
+                S = np.matrix([[dudx, (dudy + dvdx)*0.5, (dudz + dwdx)*0.5],
+                               [(dvdx + dudy)*0.5, dvdy, (dvdz + dwdy)*0.5],
+                               [(dwdx + dudz)*0.5, (dwdy + dvdz)*0.5, dwdz]])
+
+                eVals, eVecs = np.linalg.eig(S)
+
+                # Sort the eigenvalues and eigenvectors in decreasing order
+                sortedIndices = np.argsort(eVals)[::-1]
+                eVecs = eVecs[:, sortedIndices]
+                vList[:, xInd, (j-1), (k-1)] = eVecs[:,1].transpose()
+
+        xInd += 1
+
+    return vList
+
+
 def getDiv():
     '''
 Function to calculate the divergence within the domain (excluding walls)
@@ -885,8 +947,6 @@ def main():
         U[:, :, N] = 1.0
     elif probType == 1:
         #h = np.linspace(0.0, zLen, N+1)
-        #print len(h)
-        #exit()
         #U = 0.1*np.random.rand(L, M+1, N+1)
         U[:, :, :] = 1.0
 
@@ -937,6 +997,9 @@ N = sLst[sInd[2]]
 hx = 1.0/(L-1)
 hy = 1.0/(M-1)
 hz = 1.0/(N-1)
+
+# Maximum number of jacobi iterations
+maxCount = 10*N*M*L
 
 # Grid metric arrays. Used by the enitre program at various points
 xColl = np.zeros(L)
