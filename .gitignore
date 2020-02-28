@@ -6,4 +6,5 @@
 *.dat
 *.vtk
 *.lay
+*.pyc
 resultFiles

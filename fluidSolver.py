@@ -32,42 +32,21 @@
 ####################################################################################################
 
 # Import all necessary modules
+import boundaryConditions as bc
 import multiprocessing as mp
+import globalVars as gv
 import numpy as np
 import h5py as hp
 
 ############################################ USER PARAMETERS #######################################
-
-# Set the number of processors for parallel computing with multiprocessing module
-nProcs = 8
 
 # Choose the grid sizes as indices from below list so that there are 2^n + 2 grid points
 # [2, 4, 6, 10, 18, 34, 66, 130, 258, 514, 1026, 2050]
 #  0  1  2  3   4   5   6    7    8    9    10    11
 sInd = np.array([5, 5, 5])
 
-# Domain lengths - along X, Y and Z directions respectively
-dLen = [1.0, 1.0, 1.0]
-
-# Tangent-hyperbolic grid stretching factor along X, Y and Z directions respectively
-beta = [1.0, 1.0, 1.0]
-
-# The hydrodynamic problem to be solved can be chosen from below
-# 0 - Lid-driven cavity
-# 1 - Forced channel flow
-probType = 0
-
-# Flag for setting periodicity along X and Y directions of the domain
-xyPeriodic = False
-
-# Toggle fwMode between ASCII and HDF5  to write output data in corresponding format
-fwMode = "HDF5"
-
 # Time-step
 dt = 0.01
-
-# Number of iterations after which output must be printed to standard I/O
-opInt = 1
 
 # File writing interval
 fwInt = 1.0
@@ -102,9 +81,8 @@ proSm = 30
 npax = np.newaxis
 
 def euler():
-    global dt, Re
+    global dt
     global N, M, L
-    global probType
     global rListColl
     global U, V, W, P
     global Hx, Hy, Hz
@@ -121,18 +99,18 @@ def euler():
     computeNLinDiff_Z()
 
     ############
-    pool = mp.Pool(processes=nProcs)
-    poolRes = [pool.apply_async(addTurbViscosity, args=(x[0], x[1])) for x in rListColl]
-    cosVals = [x.get() for x in poolRes]
-    print(cosVals[0][:,0,5,5])
-    exit(0)
+    #pool = mp.Pool(processes=gv.nProcs)
+    #poolRes = [pool.apply_async(addTurbViscosity, args=(x[0], x[1])) for x in rListColl]
+    #cosVals = [x.get() for x in poolRes]
+    #print(cosVals[0][:,0,5,5])
+    #exit(0)
     # Flatten the lists
     #cos1 = [x for y in cosVals for x in y[0]]
     #cos2 = [x for y in cosVals for x in y[1]]
     #cos3 = [x for y in cosVals for x in y[2]]
 
     # Add constant pressure gradient forcing for channel flows
-    if probType == 1:
+    if gv.probType == 1:
         Hx[:, :, :] += 1.0
 
     # Calculating guessed values of U implicitly
@@ -163,13 +141,13 @@ def euler():
     W[1:L, 1:M, 1:N-1] = Wp[1:L, 1:M, 1:N-1] - dt*zt_zColl[1:N-1]*(Pp[1:L, 1:M, 2:N] - Pp[1:L, 1:M, 1:N-1])/hz
 
     # Impose no-slip BC on new values of U, V and W
-    U = imposeUBCs(U)
-    V = imposeVBCs(V)
-    W = imposeWBCs(W)
+    U = bc.imposeUBCs(U)
+    V = bc.imposeVBCs(V)
+    W = bc.imposeWBCs(W)
 
 
 def computeNLinDiff_X():
-    global Hx
+    global Hx, Re
     global N, M, L
     global U, V, W
     global xixxColl, xix2Coll, etyyStag, ety2Stag, ztzzStag, ztz2Stag
@@ -182,7 +160,7 @@ def computeNLinDiff_X():
 
 
 def computeNLinDiff_Y():
-    global Hy
+    global Hy, Re
     global N, M, L
     global U, V, W
     global xixxStag, xix2Stag, etyyColl, ety2Coll, ztzzStag, ztz2Stag
@@ -195,7 +173,7 @@ def computeNLinDiff_Y():
 
 
 def computeNLinDiff_Z():
-    global Hz
+    global Hz, Re
     global N, M, L
     global U, V, W
     global xixxStag, xix2Stag, etyyStag, ety2Stag, ztzzColl, ztz2Coll
@@ -261,174 +239,6 @@ def D_Zt(inpFld, Nx, Ny, Nz):
     return outFld[1:Nx, 1:Ny, 1:Nz]
 
 
-# No-slip and no-penetration BCs
-def imposeUBCs(U):
-    global probType
-    global xyPeriodic
-
-    # Periodic BCs along X and Y directions
-    if xyPeriodic:
-        # Left wall
-        U[0, :, :] = U[-2, :, :]
-
-        # Right wall
-        U[-1, :, :] = U[1, :, :]
-
-        # Front wall
-        U[:, 0, :] = U[:, -3, :]
-
-        # Back wall
-        U[:, -1, :] = U[:, 2, :]
-
-    # No-slip and no-penetration BCs
-    else:
-        # Left wall
-        U[0, :, :] = -U[1, :, :]
-
-        # Right wall
-        U[-1, :, :] = -U[-2, :, :]
-
-        # Front wall
-        U[:, 0, :] = 0.0
-
-        # Back wall
-        U[:, -1, :] = 0.0
-
-    # Bottom wall
-    U[:, :, 0] = 0.0
-
-    # Top wall
-    if probType == 0:
-        # Moving lid on top for LDC
-        U[:, :, -1] = 1.0
-    elif probType == 1:
-        U[:, :, -1] = 0.0
-
-    return U
-
-
-# No-slip and no-penetration BCs
-def imposeVBCs(V):
-    global xyPeriodic
-
-    # Periodic BCs along X and Y directions
-    if xyPeriodic:
-        # Left wall
-        V[0, :, :] = V[-3, :, :]
-
-        # Right wall
-        V[-1, :, :] = V[2, :, :]
-
-        # Front wall
-        V[:, 0, :] = V[:, -2, :]
-
-        # Back wall
-        V[:, -1, :] = V[:, 1, :]
-
-    # No-slip and no-penetration BCs
-    else:
-        # Left wall
-        V[0, :, :] = 0.0
-
-        # Right wall
-        V[-1, :, :] = 0.0
-
-        # Front wall
-        V[:, 0, :] = -V[:, 1, :]
-
-        # Back wall
-        V[:, -1, :] = -V[:, -2, :]
-
-    # Bottom wall
-    V[:, :, 0] = 0.0
-
-    # Top wall
-    V[:, :, -1] = 0.0
-
-    return V
-
-
-# No-slip and no-penetration BCs
-def imposeWBCs(W):
-    global xyPeriodic
-
-    # Periodic BCs along X and Y directions
-    if xyPeriodic:
-        # Left wall
-        W[0, :, :] = W[-3, :, :]
-
-        # Right wall
-        W[-1, :, :] = W[2, :, :]
-
-        # Front wall
-        W[:, 0, :] = W[:, -3, :]
-
-        # Back wall
-        W[:, -1, :] = W[:, 2, :]
-
-    # No-slip and no-penetration BCs
-    else:
-        # Left wall
-        W[0, :, :] = 0.0
-
-        # Right wall
-        W[-1, :, :] = 0.0
-
-        # Front wall
-        W[:, 0, :] = 0.0
-
-        # Back wall
-        W[:, -1, :] = 0.0
-
-    # Bottom wall
-    W[:, :, 0] = -W[:, :, 1]
-
-    # Top wall
-    W[:, :, -1] = -W[:, :, -2]
-
-    return W
-
-
-def imposePBCs(P):
-    global xyPeriodic
-
-    # Periodic BCs along X and Y directions
-    if xyPeriodic:
-        # Left wall
-        P[0, :, :] = P[-3, :, :]
-
-        # Right wall
-        P[-1, :, :] = P[2, :, :]
-
-        # Front wall
-        P[:, 0, :] = P[:, -3, :]
-
-        # Back wall
-        P[:, -1, :] = P[:, 2, :]
-
-    # Neumann boundary condition on pressure
-    else:
-        # Left wall
-        P[0, :, :] = P[2, :, :]
-
-        # Right wall
-        P[-1, :, :] = P[-3, :, :]
-
-        # Front wall
-        P[:, 0, :] = P[:, 2, :]
-
-        # Back wall
-        P[:, -1, :] = P[:, -3, :]
-
-    # Bottom wall
-    P[:, :, 0] = P[:, :, 2]
-
-    # Top wall
-    P[:, :, -1] = P[:, :, -3]
-
-    return P
-
-
 #Jacobi iterative solver for U
 def uJacobi(rho):
     global Re, dt
@@ -436,7 +246,6 @@ def uJacobi(rho):
     global maxCount
     global tolerance
     global hx, hy, hz
-    global iCnt, opInt
     global xix2Coll, ety2Stag, ztz2Stag
 
     prev_sol = np.zeros_like(rho)
@@ -454,7 +263,7 @@ def uJacobi(rho):
                                            (hx*hx)*(hy*hy)*ztz2Stag[0:N-1])/(Re*(hx*hx)*(hy*hy)*(hz*hz)))
 
         # IMPOSE BOUNDARY CONDITION AND COPY TO PREVIOUS SOLUTION ARRAY
-        next_sol = imposeUBCs(next_sol)
+        next_sol = bc.imposeUBCs(next_sol)
         prev_sol = np.copy(next_sol)
 
         test_sol[1:L-1, 1:M, 1:N] = next_sol[1:L-1,   1:M, 1:N] - (
@@ -465,7 +274,7 @@ def uJacobi(rho):
         error_temp = np.fabs(rho[1:L-1, 1:M, 1:N] - test_sol[1:L-1, 1:M, 1:N])
         maxErr = np.amax(error_temp)
         if maxErr < tolerance:
-            if iCnt % opInt == 0:
+            if gv.iCnt % gv.opInt == 0:
                 print "Jacobi solver for U converged in ", jCnt, " iterations"
             break
 
@@ -485,7 +294,6 @@ def vJacobi(rho):
     global maxCount
     global tolerance
     global hx, hy, hz
-    global iCnt, opInt
     global xix2Stag, ety2Coll, ztz2Stag
 
     prev_sol = np.zeros_like(rho)
@@ -503,7 +311,7 @@ def vJacobi(rho):
                                            (hx*hx)*(hy*hy)*ztz2Stag[0:N-1])/(Re*(hx*hx)*(hy*hy)*(hz*hz)))
 
         # IMPOSE BOUNDARY CONDITION AND COPY TO PREVIOUS SOLUTION ARRAY
-        next_sol = imposeVBCs(next_sol)
+        next_sol = bc.imposeVBCs(next_sol)
         prev_sol = np.copy(next_sol)
 
         test_sol[1:L, 1:M-1, 1:N] = next_sol[  1:L, 1:M-1, 1:N] - (
@@ -514,7 +322,7 @@ def vJacobi(rho):
         error_temp = np.fabs(rho[1:L, 1:M-1, 1:N] - test_sol[1:L, 1:M-1, 1:N])
         maxErr = np.amax(error_temp)
         if maxErr < tolerance:
-            if iCnt % opInt == 0:
+            if gv.iCnt % gv.opInt == 0:
                 print "Jacobi solver for V converged in ", jCnt, " iterations"
             break
 
@@ -534,7 +342,6 @@ def wJacobi(rho):
     global maxCount
     global tolerance
     global hx, hy, hz
-    global iCnt, opInt
     global xix2Stag, ety2Stag, ztz2Coll
 
     prev_sol = np.zeros_like(rho)
@@ -552,7 +359,7 @@ def wJacobi(rho):
                                            (hx*hx)*(hy*hy)*ztz2Coll[1:N-1])/(Re*(hx*hx)*(hy*hy)*(hz*hz)))
 
         # IMPOSE BOUNDARY CONDITION AND COPY TO PREVIOUS SOLUTION ARRAY
-        next_sol = imposeWBCs(next_sol)
+        next_sol = bc.imposeWBCs(next_sol)
         prev_sol = np.copy(next_sol)
 
         test_sol[1:L, 1:M, 1:N-1] = next_sol[  1:L, 1:M, 1:N-1] - (
@@ -563,7 +370,7 @@ def wJacobi(rho):
         error_temp = np.fabs(rho[1:L, 1:M, 1:N-1] - test_sol[1:L, 1:M, 1:N-1])
         maxErr = np.amax(error_temp)
         if maxErr < tolerance:
-            if iCnt % opInt == 0:
+            if gv.iCnt % gv.opInt == 0:
                 print "Jacobi solver for W converged in ", jCnt, " iterations"
             break
 
@@ -638,7 +445,7 @@ def smooth(function, rho, hx, hy, hz, iteration_times, vLevel):
     [L, M, N] = np.array(np.shape(function)) - 1
 
     for i in range(iteration_times):
-        toSmooth = imposePBCs(smoothed)
+        toSmooth = bc.imposePBCs(smoothed)
 
         smoothed[1:L, 1:M, 1:N] = (
                         (hy*hy)*(hz*hz)*xix2Stag[0::2**vLevel, npax, npax]*(toSmooth[2:L+1, 1:M, 1:N] + toSmooth[0:L-1, 1:M, 1:N])*2.0 +
@@ -775,6 +582,7 @@ OUTPUT: gradient: 3D matrix of double precision values with same size as input m
 
 
 def addTurbViscosity(xStr, xEnd):
+    global nu
     global U, V, W
     global L, M, N
     global hx, hy, hz
@@ -782,11 +590,12 @@ def addTurbViscosity(xStr, xEnd):
     xInd = 0
     subNx = xEnd - xStr
 
-    vList = np.zeros((3, subNx, M-2, N-2))
+    vList = np.zeros((subNx, M-2, N-2))
 
     for i in range(xStr, xEnd):
         for j in range(1, M-1):
             for k in range(1, N-1):
+                # Compute all the necessary velocity gradients in each cell
                 dudx = (U[i+1, j, k] - U[i, j, k])/hx
                 dudy = (U[i, j+1, k] - U[i, j, k])/hy
                 dudz = (U[i, j, k+1] - U[i, j, k])/hz
@@ -799,16 +608,29 @@ def addTurbViscosity(xStr, xEnd):
                 dwdy = (W[i, j+1, k] - W[i, j, k])/hy
                 dwdz = (W[i, j, k+1] - W[i, j, k])/hz
 
+                # Construct the resolved strain-rate tensor
                 S = np.matrix([[dudx, (dudy + dvdx)*0.5, (dudz + dwdx)*0.5],
                                [(dvdx + dudy)*0.5, dvdy, (dvdz + dwdy)*0.5],
                                [(dwdx + dudz)*0.5, (dwdy + dvdz)*0.5, dwdz]])
 
+                # Obtain the eigenvalues and eigenvectors of the strain-rate tensor
                 eVals, eVecs = np.linalg.eig(S)
 
                 # Sort the eigenvalues and eigenvectors in decreasing order
                 sortedIndices = np.argsort(eVals)[::-1]
                 eVecs = eVecs[:, sortedIndices]
-                vList[:, xInd, (j-1), (k-1)] = eVecs[:,1].transpose()
+
+                # Get the intermediate eigenvector along which the sub-grid vortex is assumed to be aligned
+                ev = eVecs[:,1]
+
+                # Compute the stretching felt along subgrid vortex axis
+                a = 0.0
+                for i in range(3):
+                    for j in range(3):
+                        a += S[i,j]*ev[i]*ev[j]
+
+                # Compute the lambda coefficient used to compute the 
+                lambda_v = 2.0*nu/(3.0*a)
 
         xInd += 1
 
@@ -837,12 +659,11 @@ OUTPUT: The maximum value of divergence in double precision
 
 
 def writeSoln(time):
-    global fwMode
     global N, M, L
     global U, V, W, P
     global xColl, yColl, zColl
 
-    if fwMode == "ASCII":
+    if gv.fwMode == "ASCII":
         fName = "Soln_" + "{0:09.5f}".format(time) + ".dat"
         print "Writing solution file: ", fName
 
@@ -857,12 +678,12 @@ def writeSoln(time):
                                 (U[k, j, i] + U[k, j+1, i] + U[k, j, i+1] + U[k, j+1, i+1])/4.0,
                                 (V[k, j, i] + V[k+1, j, i] + V[k, j, i+1] + V[k+1, j, i+1])/4.0,
                                 (W[k, j, i] + W[k+1, j, i] + W[k, j+1, i] + W[k+1, j+1, i])/4.0,
-                                (P[k,   j, i] + P[k+1,   j, i] + P[k,   j+1, i] + P[k+1,   j+1, i] +
-                                P[k, j, i+1] + P[k+1, j, i+1] + P[k, j+1, i+1] + P[k+1, j+1, i+1])/8.0))
+                                (P[k, j, i] + P[k+1, j, i] + P[k, j+1, i] + P[k+1, j+1, i] +
+                                 P[k, j, i+1] + P[k+1, j, i+1] + P[k, j+1, i+1] + P[k+1, j+1, i+1])/8.0))
 
         ofFile.close()
 
-    elif fwMode == "HDF5":
+    elif gv.fwMode == "HDF5":
         fName = "Soln_" + "{0:09.5f}.h5".format(time)
         print "Writing solution file: ", fName
 
@@ -877,7 +698,6 @@ def writeSoln(time):
 
 
 def calculateMetrics():
-    global beta
     global xColl, yColl, zColl
     global xStag, yStag, zStag
     global xi_xColl, et_yColl, zt_zColl
@@ -889,63 +709,69 @@ def calculateMetrics():
     et = np.linspace(0.0, 1.0, M)
     zt = np.linspace(0.0, 1.0, N)
 
-    # Calculate grid and its metrics
-    xColl = [dLen[0]*(1.0 - np.tanh(beta[0]*(1.0 - 2.0*i))/np.tanh(beta[0]))/2.0 for i in xi]
-    yColl = [dLen[1]*(1.0 - np.tanh(beta[1]*(1.0 - 2.0*i))/np.tanh(beta[1]))/2.0 for i in et]
-    zColl = [dLen[2]*(1.0 - np.tanh(beta[2]*(1.0 - 2.0*i))/np.tanh(beta[2]))/2.0 for i in zt]
+    xLen = gv.dLen[0]
+    yLen = gv.dLen[1]
+    zLen = gv.dLen[2]
 
-    xStag = [dLen[0]*(1.0 - np.tanh(beta[0]*(1.0 - 2.0*i))/np.tanh(beta[0]))/2.0 for i in [(xi[j] + xi[j+1])/2 for j in range(len(xi) - 1)]]
-    yStag = [dLen[1]*(1.0 - np.tanh(beta[1]*(1.0 - 2.0*i))/np.tanh(beta[1]))/2.0 for i in [(et[j] + et[j+1])/2 for j in range(len(et) - 1)]]
-    zStag = [dLen[2]*(1.0 - np.tanh(beta[2]*(1.0 - 2.0*i))/np.tanh(beta[2]))/2.0 for i in [(zt[j] + zt[j+1])/2 for j in range(len(zt) - 1)]]
+    xBeta = gv.beta[0]
+    yBeta = gv.beta[1]
+    zBeta = gv.beta[2]
+
+    # Calculate grid and its metrics
+    xColl = [xLen*(1.0 - np.tanh(xBeta*(1.0 - 2.0*i))/np.tanh(xBeta))/2.0 for i in xi]
+    yColl = [yLen*(1.0 - np.tanh(yBeta*(1.0 - 2.0*i))/np.tanh(yBeta))/2.0 for i in et]
+    zColl = [zLen*(1.0 - np.tanh(zBeta*(1.0 - 2.0*i))/np.tanh(zBeta))/2.0 for i in zt]
+
+    xStag = [xLen*(1.0 - np.tanh(xBeta*(1.0 - 2.0*i))/np.tanh(xBeta))/2.0 for i in [(xi[j] + xi[j+1])/2 for j in range(len(xi) - 1)]]
+    yStag = [yLen*(1.0 - np.tanh(yBeta*(1.0 - 2.0*i))/np.tanh(yBeta))/2.0 for i in [(et[j] + et[j+1])/2 for j in range(len(et) - 1)]]
+    zStag = [zLen*(1.0 - np.tanh(zBeta*(1.0 - 2.0*i))/np.tanh(zBeta))/2.0 for i in [(zt[j] + zt[j+1])/2 for j in range(len(zt) - 1)]]
 
     # Grid metrics for both staggered and collocated grids
-    xi_xColl = np.array([np.tanh(beta[0])/(beta[0]*dLen[0]*(1.0 - ((1.0 - 2.0*k/dLen[0])*np.tanh(beta[0]))**2.0)) for k in xColl])
-    xixxColl = np.array([-4.0*(np.tanh(beta[0])**3.0)*(1.0 - 2.0*k/dLen[0])/(beta[0]*dLen[0]*dLen[0]*(1.0 - (np.tanh(beta[0])*(1.0 - 2.0*k/dLen[0])**2.0)**2.0)) for k in xColl])
+    xi_xColl = np.array([np.tanh(xBeta)/(xBeta*xLen*(1.0 - ((1.0 - 2.0*k/xLen)*np.tanh(xBeta))**2.0)) for k in xColl])
+    xixxColl = np.array([-4.0*(np.tanh(xBeta)**3.0)*(1.0 - 2.0*k/xLen)/(xBeta*xLen*xLen*(1.0 - (np.tanh(xBeta)*(1.0 - 2.0*k/xLen)**2.0)**2.0)) for k in xColl])
     xix2Coll = np.array([k*k for k in xi_xColl])
 
-    xi_xStag = np.array([np.tanh(beta[0])/(beta[0]*dLen[0]*(1.0 - ((1.0 - 2.0*k/dLen[0])*np.tanh(beta[0]))**2.0)) for k in xStag])
-    xixxStag = np.array([-4.0*(np.tanh(beta[0])**3.0)*(1.0 - 2.0*k/dLen[0])/(beta[0]*dLen[0]*dLen[0]*(1.0 - (np.tanh(beta[0])*(1.0 - 2.0*k/dLen[0])**2.0)**2.0)) for k in xStag])
+    xi_xStag = np.array([np.tanh(xBeta)/(xBeta*xLen*(1.0 - ((1.0 - 2.0*k/xLen)*np.tanh(xBeta))**2.0)) for k in xStag])
+    xixxStag = np.array([-4.0*(np.tanh(xBeta)**3.0)*(1.0 - 2.0*k/xLen)/(xBeta*xLen*xLen*(1.0 - (np.tanh(xBeta)*(1.0 - 2.0*k/xLen)**2.0)**2.0)) for k in xStag])
     xix2Stag = np.array([k*k for k in xi_xStag])
 
-    et_yColl = np.array([np.tanh(beta[1])/(beta[1]*dLen[1]*(1.0 - ((1.0 - 2.0*j/dLen[1])*np.tanh(beta[1]))**2.0)) for j in yColl])
-    etyyColl = np.array([-4.0*(np.tanh(beta[1])**3.0)*(1.0 - 2.0*j/dLen[1])/(beta[1]*dLen[1]*dLen[1]*(1.0 - (np.tanh(beta[1])*(1.0 - 2.0*j/dLen[1])**2.0)**2.0)) for j in yColl])
+    et_yColl = np.array([np.tanh(yBeta)/(yBeta*yLen*(1.0 - ((1.0 - 2.0*j/yLen)*np.tanh(yBeta))**2.0)) for j in yColl])
+    etyyColl = np.array([-4.0*(np.tanh(yBeta)**3.0)*(1.0 - 2.0*j/yLen)/(yBeta*yLen*yLen*(1.0 - (np.tanh(yBeta)*(1.0 - 2.0*j/yLen)**2.0)**2.0)) for j in yColl])
     ety2Coll = np.array([j*j for j in et_yColl])
 
-    et_yStag = np.array([np.tanh(beta[1])/(beta[1]*dLen[1]*(1.0 - ((1.0 - 2.0*j/dLen[1])*np.tanh(beta[1]))**2.0)) for j in yStag])
-    etyyStag = np.array([-4.0*(np.tanh(beta[1])**3.0)*(1.0 - 2.0*j/dLen[1])/(beta[1]*dLen[1]*dLen[1]*(1.0 - (np.tanh(beta[1])*(1.0 - 2.0*j/dLen[1])**2.0)**2.0)) for j in yStag])
+    et_yStag = np.array([np.tanh(yBeta)/(yBeta*yLen*(1.0 - ((1.0 - 2.0*j/yLen)*np.tanh(yBeta))**2.0)) for j in yStag])
+    etyyStag = np.array([-4.0*(np.tanh(yBeta)**3.0)*(1.0 - 2.0*j/yLen)/(yBeta*yLen*yLen*(1.0 - (np.tanh(yBeta)*(1.0 - 2.0*j/yLen)**2.0)**2.0)) for j in yStag])
     ety2Stag = np.array([j*j for j in et_yStag])
 
-    zt_zColl = np.array([np.tanh(beta[2])/(beta[2]*dLen[2]*(1.0 - ((1.0 - 2.0*i/dLen[2])*np.tanh(beta[2]))**2.0)) for i in zColl])
-    ztzzColl = np.array([-4.0*(np.tanh(beta[2])**3.0)*(1.0 - 2.0*i/dLen[2])/(beta[2]*dLen[2]*dLen[2]*(1.0 - (np.tanh(beta[2])*(1.0 - 2.0*i/dLen[2])**2.0)**2.0)) for i in zColl])
+    zt_zColl = np.array([np.tanh(zBeta)/(zBeta*zLen*(1.0 - ((1.0 - 2.0*i/zLen)*np.tanh(zBeta))**2.0)) for i in zColl])
+    ztzzColl = np.array([-4.0*(np.tanh(zBeta)**3.0)*(1.0 - 2.0*i/zLen)/(zBeta*zLen*zLen*(1.0 - (np.tanh(zBeta)*(1.0 - 2.0*i/zLen)**2.0)**2.0)) for i in zColl])
     ztz2Coll = np.array([i*i for i in zt_zColl])
 
-    zt_zStag = np.array([np.tanh(beta[2])/(beta[2]*dLen[2]*(1.0 - ((1.0 - 2.0*i/dLen[2])*np.tanh(beta[2]))**2.0)) for i in zStag])
-    ztzzStag = np.array([-4.0*(np.tanh(beta[2])**3.0)*(1.0 - 2.0*i/dLen[2])/(beta[2]*dLen[2]*dLen[2]*(1.0 - (np.tanh(beta[2])*(1.0 - 2.0*i/dLen[2])**2.0)**2.0)) for i in zStag])
+    zt_zStag = np.array([np.tanh(zBeta)/(zBeta*zLen*(1.0 - ((1.0 - 2.0*i/zLen)*np.tanh(zBeta))**2.0)) for i in zStag])
+    ztzzStag = np.array([-4.0*(np.tanh(zBeta)**3.0)*(1.0 - 2.0*i/zLen)/(zBeta*zLen*zLen*(1.0 - (np.tanh(zBeta)*(1.0 - 2.0*i/zLen)**2.0)**2.0)) for i in zStag])
     ztz2Stag = np.array([i*i for i in zt_zStag])
 
 
 # Main segment of code.
 def main():
     global dt, tMax, fwInt, opInt
-    global time, iCnt
-    global probType
     global L, M, N
-    global nProcs
+    global time
     global U
 
     maxProcs = mp.cpu_count()
-    if nProcs > maxProcs:
-        print("\nERROR: " + str(nProcs) + " exceeds the available number of processors (" + str(maxProcs) + ")\n")
+    if gv.nProcs > maxProcs:
+        print("\nERROR: " + str(gv.nProcs) + " exceeds the available number of processors (" + str(maxProcs) + ")\n")
         exit(0)
     else:
-        print("\nUsing " + str(nProcs) + " out of " + str(maxProcs) + " processors\n")
+        print("\nUsing " + str(gv.nProcs) + " out of " + str(maxProcs) + " processors\n")
 
     calculateMetrics()
 
-    if probType == 0:
+    if gv.probType == 0:
         # BC for moving top lid - U = 1.0 on lid
         U[:, :, N] = 1.0
-    elif probType == 1:
+    elif gv.probType == 1:
         #h = np.linspace(0.0, zLen, N+1)
         #U = 0.1*np.random.rand(L, M+1, N+1)
         U[:, :, :] = 1.0
@@ -964,9 +790,9 @@ def main():
             print "ERROR: Divergence has exceeded permissible limits. Aborting"
             quit()
 
-        iCnt += 1
+        gv.iCnt += 1
         time += dt
-        if iCnt % opInt == 0:
+        if gv.iCnt % gv.opInt == 0:
             print "Time: {0:9.5f}".format(time)
             print "Maximum divergence: {0:8.5f} at ({1:d}, {2:d}, {3:d})\n".format(maxDiv[1], maxDiv[0][0], maxDiv[0][1], maxDiv[0][2])
 
@@ -1034,13 +860,13 @@ ztzzStag = np.zeros(N-1)    #-- d2Zt/dZ2 at all z-grid nodes
 ztz2Stag = np.zeros(N-1)    #-- (dZt/dZ)**2 at all z-grid nodes
 
 time = 0.0
-iCnt = 0
+nu = 1.0/Re
 
 # Create list of ranges (in terms of indices) along X direction, which is the direction of parallelization
-rangeDivs = [int(x) for x in np.linspace(1, L-1, nProcs+1)]
-rListColl = [(rangeDivs[x], rangeDivs[x+1]) for x in range(nProcs)]
-rangeDivs = [int(x) for x in np.linspace(1, L, nProcs+1)]
-rListStag = [(rangeDivs[x], rangeDivs[x+1]) for x in range(nProcs)]
+rangeDivs = [int(x) for x in np.linspace(1, L-1, gv.nProcs+1)]
+rListColl = [(rangeDivs[x], rangeDivs[x+1]) for x in range(gv.nProcs)]
+rangeDivs = [int(x) for x in np.linspace(1, L, gv.nProcs+1)]
+rListStag = [(rangeDivs[x], rangeDivs[x+1]) for x in range(gv.nProcs)]
 
 # Create and initialize U, V and P arrays
 # The arrays have two extra points
