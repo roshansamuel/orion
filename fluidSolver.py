@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 ####################################################################################################
 # Orion
@@ -275,13 +275,13 @@ def uJacobi(rho):
         maxErr = np.amax(error_temp)
         if maxErr < tolerance:
             if gv.iCnt % gv.opInt == 0:
-                print "Jacobi solver for U converged in ", jCnt, " iterations"
+                print("Jacobi solver for U converged in ", jCnt, " iterations")
             break
 
         jCnt += 1
         if jCnt > maxCount:
-            print "ERROR: Jacobi not converging in U. Aborting"
-            print "Maximum error: ", maxErr
+            print("ERROR: Jacobi not converging in U. Aborting")
+            print("Maximum error: ", maxErr)
             quit()
 
     return prev_sol
@@ -323,13 +323,13 @@ def vJacobi(rho):
         maxErr = np.amax(error_temp)
         if maxErr < tolerance:
             if gv.iCnt % gv.opInt == 0:
-                print "Jacobi solver for V converged in ", jCnt, " iterations"
+                print("Jacobi solver for V converged in ", jCnt, " iterations")
             break
 
         jCnt += 1
         if jCnt > maxCount:
-            print "ERROR: Jacobi not converging in V. Aborting"
-            print "Maximum error: ", maxErr
+            print("ERROR: Jacobi not converging in V. Aborting")
+            print("Maximum error: ", maxErr)
             quit()
 
     return prev_sol
@@ -371,13 +371,13 @@ def wJacobi(rho):
         maxErr = np.amax(error_temp)
         if maxErr < tolerance:
             if gv.iCnt % gv.opInt == 0:
-                print "Jacobi solver for W converged in ", jCnt, " iterations"
+                print("Jacobi solver for W converged in ", jCnt, " iterations")
             break
 
         jCnt += 1
         if jCnt > maxCount:
-            print "ERROR: Jacobi not converging in W. Aborting"
-            print "Maximum error: ", maxErr
+            print("ERROR: Jacobi not converging in W. Aborting")
+            print("Maximum error: ", maxErr)
             quit()
 
     return prev_sol
@@ -396,7 +396,7 @@ def multigrid(H):
         Pp = v_cycle(Pp, H)
         chMat = laplace(Pp)
 
-    print "Error after multigrid is ", np.amax(np.abs(H[1:L, 1:M, 1:N] - chMat[1:L, 1:M, 1:N]))
+    print("Error after multigrid is ", np.amax(np.abs(H[1:L, 1:M, 1:N] - chMat[1:L, 1:M, 1:N])))
 
     return Pp
 
@@ -547,8 +547,8 @@ def solve(rho, hx, hy, hz):
 
         jCnt += 1
         if jCnt > 10*N*M*L:
-            print "ERROR: Jacobi not converging. Aborting"
-            print "Maximum error: ", maxErr
+            print("ERROR: Jacobi not converging. Aborting")
+            print("Maximum error: ", maxErr)
             quit()
 
         prev_sol = np.copy(next_sol)
@@ -665,7 +665,7 @@ def writeSoln(time):
 
     if gv.fwMode == "ASCII":
         fName = "Soln_" + "{0:09.5f}".format(time) + ".dat"
-        print "Writing solution file: ", fName
+        print("Writing solution file: ", fName)
 
         ofFile = open(fName, 'w')
         ofFile.write("VARIABLES = X, Y, Z, U, V, W, P\n")
@@ -685,7 +685,7 @@ def writeSoln(time):
 
     elif gv.fwMode == "HDF5":
         fName = "Soln_" + "{0:09.5f}.h5".format(time)
-        print "Writing solution file: ", fName
+        print("Writing solution file: ", fName)
 
         f = hp.File(fName, "w")
 
@@ -787,19 +787,19 @@ def main():
 
         maxDiv = getDiv()
         if maxDiv[1] > 10.0:
-            print "ERROR: Divergence has exceeded permissible limits. Aborting"
+            print("ERROR: Divergence has exceeded permissible limits. Aborting")
             quit()
 
         gv.iCnt += 1
         time += dt
         if gv.iCnt % gv.opInt == 0:
-            print "Time: {0:9.5f}".format(time)
-            print "Maximum divergence: {0:8.5f} at ({1:d}, {2:d}, {3:d})\n".format(maxDiv[1], maxDiv[0][0], maxDiv[0][1], maxDiv[0][2])
+            print("Time: {0:9.5f}".format(time))
+            print("Maximum divergence: {0:8.5f} at ({1:d}, {2:d}, {3:d})\n".format(maxDiv[1], maxDiv[0][0], maxDiv[0][1], maxDiv[0][2]))
 
         if time > tMax:
             break
 
-    print "Simulation completed"
+    print("Simulation completed")
 
 
 ####################################################################################################
