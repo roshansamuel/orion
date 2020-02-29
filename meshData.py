@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 ####################################################################################################
 # Orion
@@ -31,7 +31,7 @@
 #
 ####################################################################################################
 
-from globalVars import sInd
+from globalVars import sInd, dLen, beta
 import numpy as np
 
 # Redefine frequently used numpy object
@@ -91,3 +91,58 @@ ztz2Coll = np.zeros(N)      #-- (dZt/dZ)**2 at all z-grid nodes
 zt_zStag = np.zeros(N-1)    #-- dZt/dZ at all z-grid nodes
 ztzzStag = np.zeros(N-1)    #-- d2Zt/dZ2 at all z-grid nodes
 ztz2Stag = np.zeros(N-1)    #-- (dZt/dZ)**2 at all z-grid nodes
+
+
+def calculateMetrics():
+    global xColl, yColl, zColl
+    global xStag, yStag, zStag
+    global xi_xColl, et_yColl, zt_zColl
+    global xi_xStag, et_yStag, zt_zStag
+    global xixxColl, xix2Coll, etyyColl, ety2Coll, ztzzColl, ztz2Coll
+    global xixxStag, xix2Stag, etyyStag, ety2Stag, ztzzStag, ztz2Stag
+
+    xi = np.linspace(0.0, 1.0, L)
+    et = np.linspace(0.0, 1.0, M)
+    zt = np.linspace(0.0, 1.0, N)
+
+    xLen = dLen[0]
+    yLen = dLen[1]
+    zLen = dLen[2]
+
+    xBeta = beta[0]
+    yBeta = beta[1]
+    zBeta = beta[2]
+
+    # Calculate grid and its metrics
+    xColl = [xLen*(1.0 - np.tanh(xBeta*(1.0 - 2.0*i))/np.tanh(xBeta))/2.0 for i in xi]
+    yColl = [yLen*(1.0 - np.tanh(yBeta*(1.0 - 2.0*i))/np.tanh(yBeta))/2.0 for i in et]
+    zColl = [zLen*(1.0 - np.tanh(zBeta*(1.0 - 2.0*i))/np.tanh(zBeta))/2.0 for i in zt]
+
+    xStag = [xLen*(1.0 - np.tanh(xBeta*(1.0 - 2.0*i))/np.tanh(xBeta))/2.0 for i in [(xi[j] + xi[j+1])/2 for j in range(len(xi) - 1)]]
+    yStag = [yLen*(1.0 - np.tanh(yBeta*(1.0 - 2.0*i))/np.tanh(yBeta))/2.0 for i in [(et[j] + et[j+1])/2 for j in range(len(et) - 1)]]
+    zStag = [zLen*(1.0 - np.tanh(zBeta*(1.0 - 2.0*i))/np.tanh(zBeta))/2.0 for i in [(zt[j] + zt[j+1])/2 for j in range(len(zt) - 1)]]
+
+    # Grid metrics for both staggered and collocated grids
+    xi_xColl = np.array([np.tanh(xBeta)/(xBeta*xLen*(1.0 - ((1.0 - 2.0*k/xLen)*np.tanh(xBeta))**2.0)) for k in xColl])
+    xixxColl = np.array([-4.0*(np.tanh(xBeta)**3.0)*(1.0 - 2.0*k/xLen)/(xBeta*xLen*xLen*(1.0 - (np.tanh(xBeta)*(1.0 - 2.0*k/xLen)**2.0)**2.0)) for k in xColl])
+    xix2Coll = np.array([k*k for k in xi_xColl])
+
+    xi_xStag = np.array([np.tanh(xBeta)/(xBeta*xLen*(1.0 - ((1.0 - 2.0*k/xLen)*np.tanh(xBeta))**2.0)) for k in xStag])
+    xixxStag = np.array([-4.0*(np.tanh(xBeta)**3.0)*(1.0 - 2.0*k/xLen)/(xBeta*xLen*xLen*(1.0 - (np.tanh(xBeta)*(1.0 - 2.0*k/xLen)**2.0)**2.0)) for k in xStag])
+    xix2Stag = np.array([k*k for k in xi_xStag])
+
+    et_yColl = np.array([np.tanh(yBeta)/(yBeta*yLen*(1.0 - ((1.0 - 2.0*j/yLen)*np.tanh(yBeta))**2.0)) for j in yColl])
+    etyyColl = np.array([-4.0*(np.tanh(yBeta)**3.0)*(1.0 - 2.0*j/yLen)/(yBeta*yLen*yLen*(1.0 - (np.tanh(yBeta)*(1.0 - 2.0*j/yLen)**2.0)**2.0)) for j in yColl])
+    ety2Coll = np.array([j*j for j in et_yColl])
+
+    et_yStag = np.array([np.tanh(yBeta)/(yBeta*yLen*(1.0 - ((1.0 - 2.0*j/yLen)*np.tanh(yBeta))**2.0)) for j in yStag])
+    etyyStag = np.array([-4.0*(np.tanh(yBeta)**3.0)*(1.0 - 2.0*j/yLen)/(yBeta*yLen*yLen*(1.0 - (np.tanh(yBeta)*(1.0 - 2.0*j/yLen)**2.0)**2.0)) for j in yStag])
+    ety2Stag = np.array([j*j for j in et_yStag])
+
+    zt_zColl = np.array([np.tanh(zBeta)/(zBeta*zLen*(1.0 - ((1.0 - 2.0*i/zLen)*np.tanh(zBeta))**2.0)) for i in zColl])
+    ztzzColl = np.array([-4.0*(np.tanh(zBeta)**3.0)*(1.0 - 2.0*i/zLen)/(zBeta*zLen*zLen*(1.0 - (np.tanh(zBeta)*(1.0 - 2.0*i/zLen)**2.0)**2.0)) for i in zColl])
+    ztz2Coll = np.array([i*i for i in zt_zColl])
+
+    zt_zStag = np.array([np.tanh(zBeta)/(zBeta*zLen*(1.0 - ((1.0 - 2.0*i/zLen)*np.tanh(zBeta))**2.0)) for i in zStag])
+    ztzzStag = np.array([-4.0*(np.tanh(zBeta)**3.0)*(1.0 - 2.0*i/zLen)/(zBeta*zLen*zLen*(1.0 - (np.tanh(zBeta)*(1.0 - 2.0*i/zLen)**2.0)**2.0)) for i in zStag])
+    ztz2Stag = np.array([i*i for i in zt_zStag])
