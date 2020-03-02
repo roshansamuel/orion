@@ -57,6 +57,16 @@ hx = 1.0/(L-1)
 hy = 1.0/(M-1)
 hz = 1.0/(N-1)
 
+hx2 = hx*hx
+hy2 = hy*hy
+hz2 = hz*hz
+
+hx2hy2 = hx2*hy2
+hy2hz2 = hy2*hz2
+hz2hx2 = hz2*hx2
+
+hx2hy2hz2 = hx2*hy2*hz2
+
 # Maximum number of jacobi iterations
 maxCount = 10*N*M*L
 

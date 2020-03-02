@@ -36,6 +36,7 @@ import boundaryConditions as bc
 import multiprocessing as mp
 import meshData as grid
 import globalVars as gv
+import writeData as dw
 import numpy as np
 import h5py as hp
 
@@ -47,7 +48,6 @@ def euler():
     global rListColl
     global U, V, W, P
     global Hx, Hy, Hz
-    global hx, hy, hz
 
     Hx.fill(0.0)
     Hy.fill(0.0)
@@ -73,31 +73,31 @@ def euler():
         Hx[:, :, :] += 1.0
 
     # Calculating guessed values of U implicitly
-    Hx[1:L-1, 1:M, 1:N] = U[1:L-1, 1:M, 1:N] + gv.dt*(Hx[1:L-1, 1:M, 1:N] - grid.xi_xColl[1:L-1, npax, npax]*(P[2:L, 1:M, 1:N] - P[1:L-1, 1:M, 1:N])/hx)
+    Hx[1:L-1, 1:M, 1:N] = U[1:L-1, 1:M, 1:N] + gv.dt*(Hx[1:L-1, 1:M, 1:N] - grid.xi_xColl[1:L-1, npax, npax]*(P[2:L, 1:M, 1:N] - P[1:L-1, 1:M, 1:N])/grid.hx)
     Up = uJacobi(Hx)
 
     # Calculating guessed values of V implicitly
-    Hy[1:L, 1:M-1, 1:N] = V[1:L, 1:M-1, 1:N] + gv.dt*(Hy[1:L, 1:M-1, 1:N] - grid.et_yColl[1:M-1, npax]*(P[1:L, 2:M, 1:N] - P[1:L, 1:M-1, 1:N])/hy)
+    Hy[1:L, 1:M-1, 1:N] = V[1:L, 1:M-1, 1:N] + gv.dt*(Hy[1:L, 1:M-1, 1:N] - grid.et_yColl[1:M-1, npax]*(P[1:L, 2:M, 1:N] - P[1:L, 1:M-1, 1:N])/grid.hy)
     Vp = vJacobi(Hy)
 
     # Calculating guessed values of W implicitly
-    Hz[1:L, 1:M, 1:N-1] = W[1:L, 1:M, 1:N-1] + gv.dt*(Hz[1:L, 1:M, 1:N-1] - grid.zt_zColl[1:N-1]*(P[1:L, 1:M, 2:N] - P[1:L, 1:M, 1:N-1])/hz)
+    Hz[1:L, 1:M, 1:N-1] = W[1:L, 1:M, 1:N-1] + gv.dt*(Hz[1:L, 1:M, 1:N-1] - grid.zt_zColl[1:N-1]*(P[1:L, 1:M, 2:N] - P[1:L, 1:M, 1:N-1])/grid.hz)
     Wp = wJacobi(Hz)
 
     # Calculating pressure correction term
     rhs = np.zeros([L+1, M+1, N+1])
-    rhs[1:L, 1:M, 1:N] = (grid.xi_xStag[0:L-1, npax, npax]*(Up[1:L, 1:M, 1:N] - Up[0:L-1, 1:M, 1:N])/hx +
-                          grid.et_yStag[0:M-1, npax]*(Vp[1:L, 1:M, 1:N] - Vp[1:L, 0:M-1, 1:N])/hy +
-                          grid.zt_zStag[0:N-1]*(Wp[1:L, 1:M, 1:N] - Wp[1:L, 1:M, 0:N-1])/hz)/gv.dt
+    rhs[1:L, 1:M, 1:N] = (grid.xi_xStag[0:L-1, npax, npax]*(Up[1:L, 1:M, 1:N] - Up[0:L-1, 1:M, 1:N])/grid.hx +
+                          grid.et_yStag[0:M-1, npax]*(Vp[1:L, 1:M, 1:N] - Vp[1:L, 0:M-1, 1:N])/grid.hy +
+                          grid.zt_zStag[0:N-1]*(Wp[1:L, 1:M, 1:N] - Wp[1:L, 1:M, 0:N-1])/grid.hz)/gv.dt
     Pp = multigrid(rhs)
 
     # Add pressure correction.
     P = P + Pp
 
     # Update new values for U, V and W
-    U[1:L-1, 1:M, 1:N] = Up[1:L-1, 1:M, 1:N] - gv.dt*grid.xi_xColl[1:L-1, npax, npax]*(Pp[2:L, 1:M, 1:N] - Pp[1:L-1, 1:M, 1:N])/hx
-    V[1:L, 1:M-1, 1:N] = Vp[1:L, 1:M-1, 1:N] - gv.dt*grid.et_yColl[1:M-1, npax]*(Pp[1:L, 2:M, 1:N] - Pp[1:L, 1:M-1, 1:N])/hy
-    W[1:L, 1:M, 1:N-1] = Wp[1:L, 1:M, 1:N-1] - gv.dt*grid.zt_zColl[1:N-1]*(Pp[1:L, 1:M, 2:N] - Pp[1:L, 1:M, 1:N-1])/hz
+    U[1:L-1, 1:M, 1:N] = Up[1:L-1, 1:M, 1:N] - gv.dt*grid.xi_xColl[1:L-1, npax, npax]*(Pp[2:L, 1:M, 1:N] - Pp[1:L-1, 1:M, 1:N])/grid.hx
+    V[1:L, 1:M-1, 1:N] = Vp[1:L, 1:M-1, 1:N] - gv.dt*grid.et_yColl[1:M-1, npax]*(Pp[1:L, 2:M, 1:N] - Pp[1:L, 1:M-1, 1:N])/grid.hy
+    W[1:L, 1:M, 1:N-1] = Wp[1:L, 1:M, 1:N-1] - gv.dt*grid.zt_zColl[1:N-1]*(Pp[1:L, 1:M, 2:N] - Pp[1:L, 1:M, 1:N-1])/grid.hz
 
     # Impose no-slip BC on new values of U, V and W
     U = bc.imposeUBCs(U)
@@ -124,7 +124,7 @@ def computeNLinDiff_Y():
 
     Hy[1:L, 1:M-1, 1:N] = ((grid.xixxStag[0:L-1, npax, npax]*D_Xi(V, L, M-1, N) + grid.etyyColl[1:M-1, npax]*D_Et(V, L, M-1, N) + grid.ztzzStag[0:N-1]*D_Zt(V, L, M-1, N))/gv.Re +
                            (grid.xix2Stag[0:L-1, npax, npax]*DDXi(V, L, M-1, N) + grid.ety2Coll[1:M-1, npax]*DDEt(V, L, M-1, N) + grid.ztz2Stag[0:N-1]*DDZt(V, L, M-1, N))*0.5/gv.Re -
-                                                                             grid.et_yColl[1:M-1, npax]*D_Et(V, L, M-1, N)*V[1:L, 1:M-1, 1:N] -
+                                                                                  grid.et_yColl[1:M-1, npax]*D_Et(V, L, M-1, N)*V[1:L, 1:M-1, 1:N] -
                       0.25*(U[0:L-1, 1:M-1, 1:N] + U[1:L, 1:M-1, 1:N] + U[1:L, 2:M, 1:N] + U[0:L-1, 2:M, 1:N])*grid.xi_xStag[0:L-1, npax, npax]*D_Xi(V, L, M-1, N) -
                       0.25*(W[1:L, 1:M-1, 0:N-1] + W[1:L, 1:M-1, 1:N] + W[1:L, 2:M, 1:N] + W[1:L, 2:M, 0:N-1])*grid.zt_zStag[0:N-1]*D_Zt(V, L, M-1, N))
 
@@ -136,61 +136,49 @@ def computeNLinDiff_Z():
 
     Hz[1:L, 1:M, 1:N-1] = ((grid.xixxStag[0:L-1, npax, npax]*D_Xi(W, L, M, N-1) + grid.etyyStag[0:M-1, npax]*D_Et(W, L, M, N-1) + grid.ztzzColl[1:N-1]*D_Zt(W, L, M, N-1))/gv.Re +
                            (grid.xix2Stag[0:L-1, npax, npax]*DDXi(W, L, M, N-1) + grid.ety2Stag[0:M-1, npax]*DDEt(W, L, M, N-1) + grid.ztz2Coll[1:N-1]*DDZt(W, L, M, N-1))*0.5/gv.Re -
-                                                                                                                        grid.zt_zColl[1:N-1]*D_Zt(W, L, M, N-1)*W[1:L, 1:M, 1:N-1] -
+                                                                                                                                  grid.zt_zColl[1:N-1]*D_Zt(W, L, M, N-1)*W[1:L, 1:M, 1:N-1] -
                       0.25*(U[0:L-1, 1:M, 1:N-1] + U[1:L, 1:M, 1:N-1] + U[1:L, 1:M, 2:N] + U[0:L-1, 1:M, 2:N])*grid.xi_xStag[0:L-1, npax, npax]*D_Xi(W, L, M, N-1) -
                       0.25*(V[1:L, 0:M-1, 1:N-1] + V[1:L, 1:M, 1:N-1] + V[1:L, 1:M, 2:N] + V[1:L, 0:M-1, 2:N])*grid.et_yStag[0:M-1, npax]*D_Et(W, L, M, N-1))
 
 
 def DDXi(inpFld, Nx, Ny, Nz):
-    global hx
-
     outFld = np.zeros_like(inpFld)
-    outFld[1:Nx, 1:Ny, 1:Nz] = (inpFld[0:Nx-1, 1:Ny, 1:Nz] - 2.0*inpFld[1:Nx, 1:Ny, 1:Nz] + inpFld[2:Nx+1, 1:Ny, 1:Nz])/(hx*hx)
+    outFld[1:Nx, 1:Ny, 1:Nz] = (inpFld[0:Nx-1, 1:Ny, 1:Nz] - 2.0*inpFld[1:Nx, 1:Ny, 1:Nz] + inpFld[2:Nx+1, 1:Ny, 1:Nz])/grid.hx2
 
     return outFld[1:Nx, 1:Ny, 1:Nz]
 
 
 def DDEt(inpFld, Nx, Ny, Nz):
-    global hy
-
     outFld = np.zeros_like(inpFld)
-    outFld[1:Nx, 1:Ny, 1:Nz] = (inpFld[1:Nx, 0:Ny-1, 1:Nz] - 2.0*inpFld[1:Nx, 1:Ny, 1:Nz] + inpFld[1:Nx, 2:Ny+1, 1:Nz])/(hy*hy)
+    outFld[1:Nx, 1:Ny, 1:Nz] = (inpFld[1:Nx, 0:Ny-1, 1:Nz] - 2.0*inpFld[1:Nx, 1:Ny, 1:Nz] + inpFld[1:Nx, 2:Ny+1, 1:Nz])/grid.hy2
 
     return outFld[1:Nx, 1:Ny, 1:Nz]
 
 
 def DDZt(inpFld, Nx, Ny, Nz):
-    global hz
-
     outFld = np.zeros_like(inpFld)
-    outFld[1:Nx, 1:Ny, 1:Nz] = (inpFld[1:Nx, 1:Ny, 0:Nz-1] - 2.0*inpFld[1:Nx, 1:Ny, 1:Nz] + inpFld[1:Nx, 1:Ny, 2:Nz+1])/(hz*hz)
+    outFld[1:Nx, 1:Ny, 1:Nz] = (inpFld[1:Nx, 1:Ny, 0:Nz-1] - 2.0*inpFld[1:Nx, 1:Ny, 1:Nz] + inpFld[1:Nx, 1:Ny, 2:Nz+1])/grid.hz2
 
     return outFld[1:Nx, 1:Ny, 1:Nz]
 
 
 def D_Xi(inpFld, Nx, Ny, Nz):
-    global hx
-
     outFld = np.zeros_like(inpFld)
-    outFld[1:Nx, 1:Ny, 1:Nz] = (inpFld[2:Nx+1, 1:Ny, 1:Nz] - inpFld[0:Nx-1, 1:Ny, 1:Nz])*0.5/hx
+    outFld[1:Nx, 1:Ny, 1:Nz] = (inpFld[2:Nx+1, 1:Ny, 1:Nz] - inpFld[0:Nx-1, 1:Ny, 1:Nz])*0.5/grid.hx
 
     return outFld[1:Nx, 1:Ny, 1:Nz]
 
 
 def D_Et(inpFld, Nx, Ny, Nz):
-    global hy
-
     outFld = np.zeros_like(inpFld)
-    outFld[1:Nx, 1:Ny, 1:Nz] = (inpFld[1:Nx, 2:Ny+1, 1:Nz] - inpFld[1:Nx, 0:Ny-1, 1:Nz])*0.5/hy
+    outFld[1:Nx, 1:Ny, 1:Nz] = (inpFld[1:Nx, 2:Ny+1, 1:Nz] - inpFld[1:Nx, 0:Ny-1, 1:Nz])*0.5/grid.hy
 
     return outFld[1:Nx, 1:Ny, 1:Nz]
 
 
 def D_Zt(inpFld, Nx, Ny, Nz):
-    global hz
-
     outFld = np.zeros_like(inpFld)
-    outFld[1:Nx, 1:Ny, 1:Nz] = (inpFld[1:Nx, 1:Ny, 2:Nz+1] - inpFld[1:Nx, 1:Ny, 0:Nz-1])*0.5/hz
+    outFld[1:Nx, 1:Ny, 1:Nz] = (inpFld[1:Nx, 1:Ny, 2:Nz+1] - inpFld[1:Nx, 1:Ny, 0:Nz-1])*0.5/grid.hz
 
     return outFld[1:Nx, 1:Ny, 1:Nz]
 
@@ -198,7 +186,6 @@ def D_Zt(inpFld, Nx, Ny, Nz):
 #Jacobi iterative solver for U
 def uJacobi(rho):
     global L, N, M
-    global hx, hy, hz
 
     prev_sol = np.zeros_like(rho)
     next_sol = np.zeros_like(rho)
@@ -206,13 +193,13 @@ def uJacobi(rho):
     jCnt = 0
 
     while True:
-        next_sol[1:L-1, 1:M, 1:N] = (((hy*hy)*(hz*hz)*grid.xix2Coll[1:L-1, npax, npax]*(prev_sol[0:L-2, 1:M, 1:N] + prev_sol[  2:L,   1:M, 1:N]) +
-                                      (hx*hx)*(hz*hz)*grid.ety2Stag[0:M-1, npax]*(prev_sol[1:L-1, 0:M-1, 1:N] + prev_sol[1:L-1, 2:M+1, 1:N]) +
-                                      (hx*hx)*(hy*hy)*grid.ztz2Stag[0:N-1]*(prev_sol[1:L-1, 1:M, 0:N-1] + prev_sol[1:L-1, 1:M, 2:N+1]))*
-                                       gv.dt/((hx*hx)*(hy*hy)*(hz*hz)*2.0*gv.Re) + rho[1:L-1, 1:M, 1:N])/ \
-                                (1.0 + gv.dt*((hy*hy)*(hz*hz)*grid.xix2Coll[1:L-1, npax, npax] +
-                                           (hx*hx)*(hz*hz)*grid.ety2Stag[0:M-1, npax] +
-                                           (hx*hx)*(hy*hy)*grid.ztz2Stag[0:N-1])/(gv.Re*(hx*hx)*(hy*hy)*(hz*hz)))
+        next_sol[1:L-1, 1:M, 1:N] = ((grid.hy2hz2*grid.xix2Coll[1:L-1, npax, npax]*(prev_sol[0:L-2, 1:M, 1:N] + prev_sol[  2:L,   1:M, 1:N]) +
+                                      grid.hz2hx2*grid.ety2Stag[0:M-1, npax]*(prev_sol[1:L-1, 0:M-1, 1:N] + prev_sol[1:L-1, 2:M+1, 1:N]) +
+                                      grid.hx2hy2*grid.ztz2Stag[0:N-1]*(prev_sol[1:L-1, 1:M, 0:N-1] + prev_sol[1:L-1, 1:M, 2:N+1]))*
+                                       gv.dt/(grid.hx2hy2hz2*2.0*gv.Re) + rho[1:L-1, 1:M, 1:N])/ \
+                                (1.0 + gv.dt*(grid.hy2hz2*grid.xix2Coll[1:L-1, npax, npax] +
+                                              grid.hz2hx2*grid.ety2Stag[0:M-1, npax] +
+                                              grid.hx2hy2*grid.ztz2Stag[0:N-1])/(gv.Re*grid.hx2hy2hz2))
 
         # IMPOSE BOUNDARY CONDITION AND COPY TO PREVIOUS SOLUTION ARRAY
         next_sol = bc.imposeUBCs(next_sol)
@@ -242,7 +229,6 @@ def uJacobi(rho):
 #Jacobi iterative solver for V
 def vJacobi(rho):
     global L, N, M
-    global hx, hy, hz
 
     prev_sol = np.zeros_like(rho)
     next_sol = np.zeros_like(rho)
@@ -250,13 +236,13 @@ def vJacobi(rho):
     jCnt = 0
 
     while True:
-        next_sol[1:L, 1:M-1, 1:N] = (((hy*hy)*(hz*hz)*grid.xix2Stag[0:L-1, npax, npax]*(prev_sol[0:L-1, 1:M-1, 1:N] + prev_sol[2:L+1, 1:M-1, 1:N]) +
-                                      (hx*hx)*(hz*hz)*grid.ety2Coll[1:M-1, npax]*(prev_sol[1:L, 0:M-2,   1:N] + prev_sol[    1:L, 2:M, 1:N]) +
-                                      (hx*hx)*(hy*hy)*grid.ztz2Stag[0:N-1]*(prev_sol[1:L, 1:M-1, 0:N-1] + prev_sol[1:L, 1:M-1, 2:N+1]))*
-                                       gv.dt/((hx*hx)*(hy*hy)*(hz*hz)*2.0*gv.Re) + rho[1:L, 1:M-1, 1:N])/ \
-                                (1.0 + gv.dt*((hy*hy)*(hz*hz)*grid.xix2Stag[0:L-1, npax, npax] +
-                                           (hx*hx)*(hz*hz)*grid.ety2Coll[1:M-1, npax] +
-                                           (hx*hx)*(hy*hy)*grid.ztz2Stag[0:N-1])/(gv.Re*(hx*hx)*(hy*hy)*(hz*hz)))
+        next_sol[1:L, 1:M-1, 1:N] = ((grid.hy2hz2*grid.xix2Stag[0:L-1, npax, npax]*(prev_sol[0:L-1, 1:M-1, 1:N] + prev_sol[2:L+1, 1:M-1, 1:N]) +
+                                      grid.hz2hx2*grid.ety2Coll[1:M-1, npax]*(prev_sol[1:L, 0:M-2,   1:N] + prev_sol[    1:L, 2:M, 1:N]) +
+                                      grid.hx2hy2*grid.ztz2Stag[0:N-1]*(prev_sol[1:L, 1:M-1, 0:N-1] + prev_sol[1:L, 1:M-1, 2:N+1]))*
+                                       gv.dt/(grid.hx2hy2hz2*2.0*gv.Re) + rho[1:L, 1:M-1, 1:N])/ \
+                                (1.0 + gv.dt*(grid.hy2hz2*grid.xix2Stag[0:L-1, npax, npax] +
+                                              grid.hz2hx2*grid.ety2Coll[1:M-1, npax] +
+                                              grid.hx2hy2*grid.ztz2Stag[0:N-1])/(gv.Re*grid.hx2hy2hz2))
 
         # IMPOSE BOUNDARY CONDITION AND COPY TO PREVIOUS SOLUTION ARRAY
         next_sol = bc.imposeVBCs(next_sol)
@@ -286,7 +272,6 @@ def vJacobi(rho):
 #Jacobi iterative solver for W
 def wJacobi(rho):
     global L, N, M
-    global hx, hy, hz
 
     prev_sol = np.zeros_like(rho)
     next_sol = np.zeros_like(rho)
@@ -294,13 +279,13 @@ def wJacobi(rho):
     jCnt = 0
 
     while True:
-        next_sol[1:L, 1:M, 1:N-1] = (((hy*hy)*(hz*hz)*grid.xix2Stag[0:L-1, npax, npax]*(prev_sol[0:L-1, 1:M, 1:N-1] + prev_sol[2:L+1, 1:M, 1:N-1]) +
-                                      (hx*hx)*(hz*hz)*grid.ety2Stag[0:M-1, npax]*(prev_sol[1:L, 0:M-1, 1:N-1] + prev_sol[1:L, 2:M+1, 1:N-1]) +
-                                      (hx*hx)*(hy*hy)*grid.ztz2Coll[1:N-1]*(prev_sol[1:L, 1:M, 0:N-2] + prev_sol[  1:L,   1:M, 2:N]))*
-                                       gv.dt/((hx*hx)*(hy*hy)*(hz*hz)*2.0*gv.Re) + rho[1:L, 1:M, 1:N-1])/ \
-                                (1.0 + gv.dt*((hy*hy)*(hz*hz)*grid.xix2Stag[0:L-1, npax, npax] +
-                                           (hx*hx)*(hz*hz)*grid.ety2Stag[0:M-1, npax] +
-                                           (hx*hx)*(hy*hy)*grid.ztz2Coll[1:N-1])/(gv.Re*(hx*hx)*(hy*hy)*(hz*hz)))
+        next_sol[1:L, 1:M, 1:N-1] = ((grid.hy2hz2*grid.xix2Stag[0:L-1, npax, npax]*(prev_sol[0:L-1, 1:M, 1:N-1] + prev_sol[2:L+1, 1:M, 1:N-1]) +
+                                      grid.hz2hx2*grid.ety2Stag[0:M-1, npax]*(prev_sol[1:L, 0:M-1, 1:N-1] + prev_sol[1:L, 2:M+1, 1:N-1]) +
+                                      grid.hx2hy2*grid.ztz2Coll[1:N-1]*(prev_sol[1:L, 1:M, 0:N-2] + prev_sol[  1:L,   1:M, 2:N]))*
+                                       gv.dt/(grid.hx2hy2hz2*2.0*gv.Re) + rho[1:L, 1:M, 1:N-1])/ \
+                                (1.0 + gv.dt*(grid.hy2hz2*grid.xix2Stag[0:L-1, npax, npax] +
+                                              grid.hz2hx2*grid.ety2Stag[0:M-1, npax] +
+                                              grid.hx2hy2*grid.ztz2Coll[1:N-1])/(gv.Re*grid.hx2hy2hz2))
 
         # IMPOSE BOUNDARY CONDITION AND COPY TO PREVIOUS SOLUTION ARRAY
         next_sol = bc.imposeWBCs(next_sol)
@@ -347,10 +332,8 @@ def multigrid(H):
 
 #Multigrid solution without the use of recursion
 def v_cycle(P, H):
-    global hx, hy, hz
-
     # Pre-smoothing
-    P = smooth(P, H, hx, hy, hz, gv.preSm, 0)
+    P = smooth(P, H, grid.hx, grid.hy, grid.hz, gv.preSm, 0)
 
     H_rsdl = H - laplace(P)
 
@@ -360,19 +343,19 @@ def v_cycle(P, H):
         H_rsdl = restrict(H_rsdl)
 
     # Solving the system after restriction
-    P_corr = solve(H_rsdl, (2.0**gv.VDepth)*hx, (2.0**gv.VDepth)*hy, (2.0**gv.VDepth)*hz)
+    P_corr = solve(H_rsdl, (2.0**gv.VDepth)*grid.hx, (2.0**gv.VDepth)*grid.hy, (2.0**gv.VDepth)*grid.hz)
 
     # Prolongation operations
     for i in range(gv.VDepth):
         gv.sInd += 1
         P_corr = prolong(P_corr)
         H_rsdl = prolong(H_rsdl)
-        P_corr = smooth(P_corr, H_rsdl, hx, hy, hz, gv.proSm, gv.VDepth-i-1)
+        P_corr = smooth(P_corr, H_rsdl, grid.hx, grid.hy, grid.hz, gv.proSm, gv.VDepth-i-1)
 
     P += P_corr
 
     # Post-smoothing
-    P = smooth(P, H, hx, hy, hz, gv.pstSm, 0)
+    P = smooth(P, H, grid.hx, grid.hy, grid.hz, gv.pstSm, 0)
 
     return P
 
@@ -495,7 +478,6 @@ Function to calculate the Laplacian for a given field of values.
 INPUT:  function: 3D matrix of double precision values
 OUTPUT: gradient: 3D matrix of double precision values with same size as input matrix
     '''
-    global hx, hy, hz
 
     # 1 subtracted from shape to account for ghost points
     [L, M, N] = np.array(np.shape(function)) - 1
@@ -528,17 +510,17 @@ def addTurbViscosity(xStr, xEnd):
         for j in range(1, M-1):
             for k in range(1, N-1):
                 # Compute all the necessary velocity gradients in each cell
-                dudx = (U[i+1, j, k] - U[i, j, k])/hx
-                dudy = (U[i, j+1, k] - U[i, j, k])/hy
-                dudz = (U[i, j, k+1] - U[i, j, k])/hz
+                dudx = (U[i+1, j, k] - U[i, j, k])/grid.hx
+                dudy = (U[i, j+1, k] - U[i, j, k])/grid.hy
+                dudz = (U[i, j, k+1] - U[i, j, k])/grid.hz
 
-                dvdx = (V[i+1, j, k] - V[i, j, k])/hx
-                dvdy = (V[i, j+1, k] - V[i, j, k])/hy
-                dvdz = (V[i, j, k+1] - V[i, j, k])/hz
+                dvdx = (V[i+1, j, k] - V[i, j, k])/grid.hx
+                dvdy = (V[i, j+1, k] - V[i, j, k])/grid.hy
+                dvdz = (V[i, j, k+1] - V[i, j, k])/grid.hz
 
-                dwdx = (W[i+1, j, k] - W[i, j, k])/hx
-                dwdy = (W[i, j+1, k] - W[i, j, k])/hy
-                dwdz = (W[i, j, k+1] - W[i, j, k])/hz
+                dwdx = (W[i+1, j, k] - W[i, j, k])/grid.hx
+                dwdy = (W[i, j+1, k] - W[i, j, k])/grid.hy
+                dwdz = (W[i, j, k+1] - W[i, j, k])/grid.hz
 
                 # Construct the resolved strain-rate tensor
                 S = np.matrix([[dudx, (dudy + dvdx)*0.5, (dudz + dwdx)*0.5],
@@ -589,49 +571,11 @@ OUTPUT: The maximum value of divergence in double precision
     return np.unravel_index(divMat.argmax(), divMat.shape), np.amax(divMat)
 
 
-def writeSoln(time):
-    global N, M, L
-    global U, V, W, P
-
-    if gv.fwMode == "ASCII":
-        fName = "Soln_" + "{0:09.5f}".format(time) + ".dat"
-        print("Writing solution file: ", fName)
-
-        ofFile = open(fName, 'w')
-        ofFile.write("VARIABLES = X, Y, Z, U, V, W, P\n")
-        ofFile.write("ZONE T=S\tI={0}\tJ={1}\tK={2}\tF=POINT\tSOLUTIONTIME={3}\n".format(L, M, N, time))
-        for i in range(0, N):
-            for j in range(0, M):
-                for k in range(0, L):
-                    ofFile.write("{0:23.16f}\t{1:23.16f}\t{2:23.16f}\t{3:23.16f}\t{4:23.16f}\t{5:23.16f}\t{6:23.16f}\n".format(
-                                grid.xColl[k], grid.yColl[j], grid.zColl[i],
-                                (U[k, j, i] + U[k, j+1, i] + U[k, j, i+1] + U[k, j+1, i+1])/4.0,
-                                (V[k, j, i] + V[k+1, j, i] + V[k, j, i+1] + V[k+1, j, i+1])/4.0,
-                                (W[k, j, i] + W[k+1, j, i] + W[k, j+1, i] + W[k+1, j+1, i])/4.0,
-                                (P[k, j, i] + P[k+1, j, i] + P[k, j+1, i] + P[k+1, j+1, i] +
-                                 P[k, j, i+1] + P[k+1, j, i+1] + P[k, j+1, i+1] + P[k+1, j+1, i+1])/8.0))
-
-        ofFile.close()
-
-    elif gv.fwMode == "HDF5":
-        fName = "Soln_" + "{0:09.5f}.h5".format(time)
-        print("Writing solution file: ", fName)
-
-        f = hp.File(fName, "w")
-
-        dset = f.create_dataset("U", data = U)
-        dset = f.create_dataset("V", data = V)
-        dset = f.create_dataset("W", data = W)
-        dset = f.create_dataset("P", data = P)
-
-        f.close()
-
-
 # Main segment of code.
 def main():
+    global U, V, W, P
     global L, M, N
     global time
-    global U
 
     maxProcs = mp.cpu_count()
     if gv.nProcs > maxProcs:
@@ -654,7 +598,7 @@ def main():
 
     while True:
         if abs(fwTime - time) < 0.5*gv.dt:
-            writeSoln(time)
+            dw.writeSoln(U, V, W, P, time)
             fwTime += gv.fwInt
 
         euler()
@@ -689,11 +633,6 @@ def main():
 L = grid.sLst[gv.sInd[0]]
 M = grid.sLst[gv.sInd[1]]
 N = grid.sLst[gv.sInd[2]]
-
-# Define grid spacings
-hx = 1.0/(L-1)
-hy = 1.0/(M-1)
-hz = 1.0/(N-1)
 
 time = 0.0
 
