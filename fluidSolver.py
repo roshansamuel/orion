@@ -38,7 +38,6 @@ import poissonSolver as ps
 import calculateFD as fd
 import meshData as grid
 import globalVars as gv
-import vortexLES as les
 import writeData as dw
 import numpy as np
 
@@ -58,17 +57,6 @@ def euler():
     computeNLinDiff_X()
     computeNLinDiff_Y()
     computeNLinDiff_Z()
-
-    ############
-    #pool = mp.Pool(processes=gv.nProcs)
-    #poolRes = [pool.apply_async(addTurbViscosity, args=(x[0], x[1])) for x in rListColl]
-    #cosVals = [x.get() for x in poolRes]
-    #print(cosVals[0][:,0,5,5])
-    #exit(0)
-    # Flatten the lists
-    #cos1 = [x for y in cosVals for x in y[0]]
-    #cos2 = [x for y in cosVals for x in y[1]]
-    #cos3 = [x for y in cosVals for x in y[2]]
 
     # Add constant pressure gradient forcing for channel flows
     if gv.probType == 1:

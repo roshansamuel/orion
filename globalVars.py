@@ -32,13 +32,11 @@
 ####################################################################################################
 
 # Import all necessary modules
-import multiprocessing as mp
 import numpy as np
-import h5py as hp
 
 ############################################ USER PARAMETERS #######################################
 
-# Set the number of processors for parallel computing with multiprocessing module
+# Set the number of processors for parallel computing (under development) with multiprocessing module
 nProcs = 8
 
 # Choose the grid sizes as indices from below list so that there are 2^n + 2 grid points
