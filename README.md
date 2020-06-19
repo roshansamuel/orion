@@ -22,11 +22,11 @@ To install ``Orion``, you need to first clone the git repository into your local
 
 ``Orion`` is compatible with Python3, and can be executed by one of the following commands at the root folder of the solver, in the terminal.
 
-`./fluidSolver.sh`
+`./fluidSolver.py`
 
 or
 
-`python fluidSolver.sh`
+`python fluidSolver.py`
 
 Before executing the solver, please set the appropriate parameters for the Navier-Stokes problem by editing the `globalVars.py` file.
 Brief descriptions of the parameters are given in comments within the file.

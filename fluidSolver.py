@@ -41,6 +41,7 @@ import globalVars as gv
 import vortexLES as les
 import writeData as dw
 import numpy as np
+import time
 
 # Redefine frequently used numpy object
 npax = np.newaxis
@@ -296,7 +297,6 @@ OUTPUT: The maximum value of divergence in double precision
 def main():
     global U, V, W, P
     global L, M, N
-    global time
 
     maxProcs = mp.cpu_count()
     if gv.nProcs > maxProcs:
@@ -315,11 +315,14 @@ def main():
         #U = 0.1*np.random.rand(L, M+1, N+1)
         U[:, :, :] = 1.0
 
+    ndTime = 0.0
     fwTime = 0.0
 
+    tStart = time.process_time()
+
     while True:
-        if abs(fwTime - time) < 0.5*gv.dt:
-            dw.writeSoln(U, V, W, P, time)
+        if abs(fwTime - ndTime) < 0.5*gv.dt:
+            dw.writeSoln(U, V, W, P, ndTime)
             fwTime += gv.fwInt
 
         euler()
@@ -330,14 +333,18 @@ def main():
             quit()
 
         gv.iCnt += 1
-        time += gv.dt
+        ndTime += gv.dt
         if gv.iCnt % gv.opInt == 0:
-            print("Time: {0:9.5f}".format(time))
+            print("Time: {0:9.5f}".format(ndTime))
             print("Maximum divergence: {0:8.5f} at ({1:d}, {2:d}, {3:d})\n".format(maxDiv[1], maxDiv[0][0], maxDiv[0][1], maxDiv[0][2]))
 
-        if time > gv.tMax:
+        if ndTime > gv.tMax:
             break
 
+    tEnd = time.process_time()
+    tElap = tEnd - tStart
+
+    print("Time elapsed = ", tElap)
     print("Simulation completed")
 
 
@@ -354,8 +361,6 @@ def main():
 L = grid.sLst[gv.sInd[0]]
 M = grid.sLst[gv.sInd[1]]
 N = grid.sLst[gv.sInd[2]]
-
-time = 0.0
 
 # Create list of ranges (in terms of indices) along X direction, which is the direction of parallelization
 rangeDivs = [int(x) for x in np.linspace(1, L-1, gv.nProcs+1)]
