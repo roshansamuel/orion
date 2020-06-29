@@ -33,7 +33,6 @@
 
 # Import all necessary modules
 import boundaryConditions as bc
-import multiprocessing as mp
 import poissonSolver as ps
 import calculateFD as fd
 import meshData as grid
@@ -46,9 +45,43 @@ import time
 # Redefine frequently used numpy object
 npax = np.newaxis
 
+# Get limits from grid object
+L, M, N = grid.L, grid.M, grid.N
+
+def initFields():
+    global U, V, W, P
+    global Hx, Hy, Hz
+
+    # Create and initialize U, V and P arrays
+    # The arrays have two extra points
+    # These act as ghost points on either sides of the domain
+    P = np.ones([grid.L + 1, grid.M + 1, grid.N + 1])
+
+    # U is staggered in Y and Z directions and hence has one extra point along these directions
+    U = np.zeros([grid.L, grid.M + 1, grid.N + 1])
+
+    # V is staggered in X and Z directions and hence has one extra point along these directions
+    V = np.zeros([grid.L + 1, grid.M, grid.N + 1])
+
+    # W is staggered in X and Y directions and hence has one extra point along these directions
+    W = np.zeros([grid.L + 1, grid.M + 1, grid.N])
+
+    # Define arrays for storing RHS of NSE
+    Hx = np.zeros_like(U)
+    Hy = np.zeros_like(V)
+    Hz = np.zeros_like(W)
+
+    if gv.probType == 0:
+        # BC for moving top lid - U = 1.0 on lid
+        U[:, :, grid.N] = 1.0
+    elif gv.probType == 1:
+        #h = np.linspace(0.0, zLen, grid.N+1)
+        #U = 0.1*np.random.rand(grid.L, grid.M+1, grid.N+1)
+        U[:, :, :] = 1.0
+
+
 def euler():
     global N, M, L
-    global rListColl
     global U, V, W, P
     global Hx, Hy, Hz
 
@@ -56,20 +89,9 @@ def euler():
     Hy.fill(0.0)
     Hz.fill(0.0)
 
-    computeNLinDiff_X()
-    computeNLinDiff_Y()
-    computeNLinDiff_Z()
-
-    ############
-    #pool = mp.Pool(processes=gv.nProcs)
-    #poolRes = [pool.apply_async(addTurbViscosity, args=(x[0], x[1])) for x in rListColl]
-    #cosVals = [x.get() for x in poolRes]
-    #print(cosVals[0][:,0,5,5])
-    #exit(0)
-    # Flatten the lists
-    #cos1 = [x for y in cosVals for x in y[0]]
-    #cos2 = [x for y in cosVals for x in y[1]]
-    #cos3 = [x for y in cosVals for x in y[2]]
+    computeNLinDiff_X(U, V, W)
+    computeNLinDiff_Y(U, V, W)
+    computeNLinDiff_Z(U, V, W)
 
     # Add constant pressure gradient forcing for channel flows
     if gv.probType == 1:
@@ -108,10 +130,9 @@ def euler():
     W = bc.imposeWBCs(W)
 
 
-def computeNLinDiff_X():
+def computeNLinDiff_X(U, V, W):
     global Hx
     global N, M, L
-    global U, V, W
 
     Hx[1:L-1, 1:M, 1:N] = ((grid.xixxColl[1:L-1, npax, npax]*fd.D_Xi(U, L-1, M, N) + grid.etyyStag[0:M-1, npax]*fd.D_Et(U, L-1, M, N) + grid.ztzzStag[0:N-1]*fd.D_Zt(U, L-1, M, N))/gv.Re +
                            (grid.xix2Coll[1:L-1, npax, npax]*fd.DDXi(U, L-1, M, N) + grid.ety2Stag[0:M-1, npax]*fd.DDEt(U, L-1, M, N) + grid.ztz2Stag[0:N-1]*fd.DDZt(U, L-1, M, N))*0.5/gv.Re -
@@ -120,10 +141,9 @@ def computeNLinDiff_X():
                       0.25*(W[1:L-1, 1:M, 0:N-1] + W[1:L-1, 1:M, 1:N] + W[2:L, 1:M, 1:N] + W[2:L, 1:M, 0:N-1])*grid.zt_zStag[0:N-1]*fd.D_Zt(U, L-1, M, N))
 
 
-def computeNLinDiff_Y():
+def computeNLinDiff_Y(U, V, W):
     global Hy
     global N, M, L
-    global U, V, W
 
     Hy[1:L, 1:M-1, 1:N] = ((grid.xixxStag[0:L-1, npax, npax]*fd.D_Xi(V, L, M-1, N) + grid.etyyColl[1:M-1, npax]*fd.D_Et(V, L, M-1, N) + grid.ztzzStag[0:N-1]*fd.D_Zt(V, L, M-1, N))/gv.Re +
                            (grid.xix2Stag[0:L-1, npax, npax]*fd.DDXi(V, L, M-1, N) + grid.ety2Coll[1:M-1, npax]*fd.DDEt(V, L, M-1, N) + grid.ztz2Stag[0:N-1]*fd.DDZt(V, L, M-1, N))*0.5/gv.Re -
@@ -132,10 +152,9 @@ def computeNLinDiff_Y():
                       0.25*(W[1:L, 1:M-1, 0:N-1] + W[1:L, 1:M-1, 1:N] + W[1:L, 2:M, 1:N] + W[1:L, 2:M, 0:N-1])*grid.zt_zStag[0:N-1]*fd.D_Zt(V, L, M-1, N))
 
 
-def computeNLinDiff_Z():
+def computeNLinDiff_Z(U, V, W):
     global Hz
     global N, M, L
-    global U, V, W
 
     Hz[1:L, 1:M, 1:N-1] = ((grid.xixxStag[0:L-1, npax, npax]*fd.D_Xi(W, L, M, N-1) + grid.etyyStag[0:M-1, npax]*fd.D_Et(W, L, M, N-1) + grid.ztzzColl[1:N-1]*fd.D_Zt(W, L, M, N-1))/gv.Re +
                            (grid.xix2Stag[0:L-1, npax, npax]*fd.DDXi(W, L, M, N-1) + grid.ety2Stag[0:M-1, npax]*fd.DDEt(W, L, M, N-1) + grid.ztz2Coll[1:N-1]*fd.DDZt(W, L, M, N-1))*0.5/gv.Re -
@@ -292,97 +311,8 @@ OUTPUT: The maximum value of divergence in double precision
 
     return np.unravel_index(divMat.argmax(), divMat.shape), np.amax(divMat)
 
-
-# Main segment of code.
-def main():
+def writeSoln(solTime):
     global U, V, W, P
-    global L, M, N
 
-    maxProcs = mp.cpu_count()
-    if gv.nProcs > maxProcs:
-        print("\nERROR: " + str(gv.nProcs) + " exceeds the available number of processors (" + str(maxProcs) + ")\n")
-        exit(0)
-    else:
-        print("\nUsing " + str(gv.nProcs) + " out of " + str(maxProcs) + " processors\n")
+    dw.writeSoln(U, V, W, P, solTime)
 
-    grid.calculateMetrics()
-
-    if gv.probType == 0:
-        # BC for moving top lid - U = 1.0 on lid
-        U[:, :, N] = 1.0
-    elif gv.probType == 1:
-        #h = np.linspace(0.0, zLen, N+1)
-        #U = 0.1*np.random.rand(L, M+1, N+1)
-        U[:, :, :] = 1.0
-
-    ndTime = 0.0
-    fwTime = 0.0
-
-    tStart = time.process_time()
-
-    while True:
-        if abs(fwTime - ndTime) < 0.5*gv.dt:
-            dw.writeSoln(U, V, W, P, ndTime)
-            fwTime += gv.fwInt
-
-        euler()
-
-        maxDiv = getDiv()
-        if maxDiv[1] > 10.0:
-            print("ERROR: Divergence has exceeded permissible limits. Aborting")
-            quit()
-
-        gv.iCnt += 1
-        ndTime += gv.dt
-        if gv.iCnt % gv.opInt == 0:
-            print("Time: {0:9.5f}".format(ndTime))
-            print("Maximum divergence: {0:8.5f} at ({1:d}, {2:d}, {3:d})\n".format(maxDiv[1], maxDiv[0][0], maxDiv[0][1], maxDiv[0][2]))
-
-        if ndTime > gv.tMax:
-            break
-
-    tEnd = time.process_time()
-    tElap = tEnd - tStart
-
-    print("Time elapsed = ", tElap)
-    print("Simulation completed")
-
-
-####################################################################################################
-
-# Limits along each direction
-# L - Along X
-# M - Along Y
-# N - Along Z
-# Data stored in arrays accessed by data[1:L, 1:M, 1:N]
-# In Python and C, the rightmost index varies fastest
-# Therefore indices in Z direction vary fastest, then along Y and finally along X
-
-L = grid.sLst[gv.sInd[0]]
-M = grid.sLst[gv.sInd[1]]
-N = grid.sLst[gv.sInd[2]]
-
-# Create list of ranges (in terms of indices) along X direction, which is the direction of parallelization
-rangeDivs = [int(x) for x in np.linspace(1, L-1, gv.nProcs+1)]
-rListColl = [(rangeDivs[x], rangeDivs[x+1]) for x in range(gv.nProcs)]
-rangeDivs = [int(x) for x in np.linspace(1, L, gv.nProcs+1)]
-rListStag = [(rangeDivs[x], rangeDivs[x+1]) for x in range(gv.nProcs)]
-
-# Create and initialize U, V and P arrays
-# The arrays have two extra points
-# These act as ghost points on either sides of the domain
-P = np.ones([L+1, M+1, N+1])
-
-# U and Hx (RHS of X component of NSE) are staggered in Y and Z directions and hence has one extra point along these directions
-U = np.zeros([L, M+1, N+1])
-Hx = np.zeros([L, M+1, N+1])
-
-# V and Hy (RHS of Y component of NSE) are staggered in X and Z directions and hence has one extra point along these directions
-V = np.zeros([L+1, M, N+1])
-Hy = np.zeros([L+1, M, N+1])
-
-# W and Hz (RHS of Z component of NSE) are staggered in X and Y directions and hence has one extra point along these directions
-W = np.zeros([L+1, M+1, N])
-Hz = np.zeros([L+1, M+1, N])
-
-main()

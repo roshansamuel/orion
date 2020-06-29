@@ -32,14 +32,11 @@
 ####################################################################################################
 
 # Import all necessary modules
-import multiprocessing as mp
 import meshData as grid
 import globalVars as gv
 import numpy as np
 
-# Redefine frequently used numpy object
-npax = np.newaxis
-
+# Function to compute and add turbulent viscosity from LES model
 def addTurbViscosity(xStr, xEnd):
     global U, V, W
     global L, M, N
