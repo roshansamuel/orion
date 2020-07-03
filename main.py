@@ -33,10 +33,14 @@
 
 # Import all necessary modules
 import multiprocessing as mp
-import fluidSolver as fs
 import globalVars as gv
 import numpy as np
 import time
+
+if gv.uniformGrid:
+    import fluidSolverUG as fs
+else:
+    import fluidSolverNU as fs
 
 # Main segment of code.
 def main():
@@ -49,7 +53,10 @@ def main():
     else:
         print("\nUsing " + str(gv.nProcs) + " out of " + str(maxProcs) + " processors\n")
 
-    fs.grid.calculateMetrics()
+    fs.grid.initializeGrid()
+
+    if not gv.uniformGrid:
+        fs.grid.calculateMetrics()
 
     fs.initFields()
 
@@ -88,12 +95,6 @@ def main():
 
 ####################################################################################################
 
-
-# Create list of ranges (in terms of indices) along X direction, which is the direction of parallelization
-rangeDivs = [int(x) for x in np.linspace(1, fs.grid.L-1, gv.nProcs+1)]
-rListColl = [(rangeDivs[x], rangeDivs[x+1]) for x in range(gv.nProcs)]
-rangeDivs = [int(x) for x in np.linspace(1, fs.grid.L, gv.nProcs+1)]
-rListStag = [(rangeDivs[x], rangeDivs[x+1]) for x in range(gv.nProcs)]
 
 if __name__ == "__main__":
     main()

@@ -47,7 +47,10 @@ sInd = np.array([5, 5, 5])
 # Domain lengths - along X, Y and Z directions respectively
 dLen = [1.0, 1.0, 1.0]
 
-# Tangent-hyperbolic grid stretching factor along X, Y and Z directions respectively
+# Turn below flag on when using uniform grid
+uniformGrid = True
+
+# If above flag is True, set tangent-hyperbolic stretching factors along X, Y and Z directions respectively
 beta = [1.0, 1.0, 1.0]
 
 # The hydrodynamic problem to be solved can be chosen from below

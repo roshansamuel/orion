@@ -38,8 +38,8 @@ import meshData as grid
 import globalVars as gv
 import numpy as np
 
-# Redefine frequently used numpy object
-npax = np.newaxis
+# Get limits from grid object
+L, M, N = grid.L, grid.M, grid.N
 
 def multigrid(H):
     global N, M, L
@@ -96,16 +96,11 @@ def smooth(function, rho, hx, hy, hz, iteration_times, vLevel):
         toSmooth = bc.imposePBCs(smoothed)
 
         smoothed[1:L, 1:M, 1:N] = (
-                        (hy*hy)*(hz*hz)*grid.xix2Stag[0::2**vLevel, npax, npax]*(toSmooth[2:L+1, 1:M, 1:N] + toSmooth[0:L-1, 1:M, 1:N])*2.0 +
-                        (hy*hy)*(hz*hz)*grid.xixxStag[0::2**vLevel, npax, npax]*(toSmooth[2:L+1, 1:M, 1:N] - toSmooth[0:L-1, 1:M, 1:N])*hx +
-                        (hx*hx)*(hz*hz)*grid.ety2Stag[0::2**vLevel, npax]*(toSmooth[1:L, 2:M+1, 1:N] + toSmooth[1:L, 0:M-1, 1:N])*2.0 +
-                        (hx*hx)*(hz*hz)*grid.etyyStag[0::2**vLevel, npax]*(toSmooth[1:L, 2:M+1, 1:N] - toSmooth[1:L, 0:M-1, 1:N])*hy +
-                        (hx*hx)*(hy*hy)*grid.ztz2Stag[0::2**vLevel]*(toSmooth[1:L, 1:M, 2:N+1] + toSmooth[1:L, 1:M, 0:N-1])*2.0 +
-                        (hx*hx)*(hy*hy)*grid.ztzzStag[0::2**vLevel]*(toSmooth[1:L, 1:M, 2:N+1] - toSmooth[1:L, 1:M, 0:N-1])*hz -
-                    2.0*(hx*hx)*(hy*hy)*(hz*hz)*rho[1:L, 1:M, 1:N])/ \
-                  (4.0*((hy*hy)*(hz*hz)*grid.xix2Stag[0::2**vLevel, npax, npax] +
-                        (hx*hx)*(hz*hz)*grid.ety2Stag[0::2**vLevel, npax] +
-                        (hx*hx)*(hy*hy)*grid.ztz2Stag[0::2**vLevel]))
+                        (hy*hy)*(hz*hz)*(toSmooth[2:L+1, 1:M, 1:N] + toSmooth[0:L-1, 1:M, 1:N]) +
+                        (hx*hx)*(hz*hz)*(toSmooth[1:L, 2:M+1, 1:N] + toSmooth[1:L, 0:M-1, 1:N]) +
+                        (hx*hx)*(hy*hy)*(toSmooth[1:L, 1:M, 2:N+1] + toSmooth[1:L, 1:M, 0:N-1]) -
+                        (hx*hx)*(hy*hy)*(hz*hz)*rho[1:L, 1:M, 1:N])/ \
+                  (2.0*((hy*hy)*(hz*hz) + (hx*hx)*(hz*hz) + (hx*hx)*(hy*hy)))
 
     return smoothed
 
@@ -162,24 +157,14 @@ def solve(rho, hx, hy, hz):
 
     while True:
         next_sol[1:L, 1:M, 1:N] = (
-            (hy*hy)*(hz*hz)*grid.xix2Stag[0::2**gv.VDepth, npax, npax]*(prev_sol[2:L+1, 1:M, 1:N] + prev_sol[0:L-1, 1:M, 1:N])*2.0 +
-            (hy*hy)*(hz*hz)*grid.xixxStag[0::2**gv.VDepth, npax, npax]*(prev_sol[2:L+1, 1:M, 1:N] - prev_sol[0:L-1, 1:M, 1:N])*hx +
-            (hx*hx)*(hz*hz)*grid.ety2Stag[0::2**gv.VDepth, npax]*(prev_sol[1:L, 2:M+1, 1:N] + prev_sol[1:L, 0:M-1, 1:N])*2.0 +
-            (hx*hx)*(hz*hz)*grid.etyyStag[0::2**gv.VDepth, npax]*(prev_sol[1:L, 2:M+1, 1:N] - prev_sol[1:L, 0:M-1, 1:N])*hy +
-            (hx*hx)*(hy*hy)*grid.ztz2Stag[0::2**gv.VDepth]*(prev_sol[1:L, 1:M, 2:N+1] + prev_sol[1:L, 1:M, 0:N-1])*2.0 +
-            (hx*hx)*(hy*hy)*grid.ztzzStag[0::2**gv.VDepth]*(prev_sol[1:L, 1:M, 2:N+1] - prev_sol[1:L, 1:M, 0:N-1])*hz -
-        2.0*(hx*hx)*(hy*hy)*(hz*hz)*rho[1:L, 1:M, 1:N])/ \
-      (4.0*((hy*hy)*(hz*hz)*grid.xix2Stag[0::2**gv.VDepth, npax, npax] +
-            (hx*hx)*(hz*hz)*grid.ety2Stag[0::2**gv.VDepth, npax] +
-            (hx*hx)*(hy*hy)*grid.ztz2Stag[0::2**gv.VDepth]))
+            (hy*hy)*(hz*hz)*(prev_sol[2:L+1, 1:M, 1:N] + prev_sol[0:L-1, 1:M, 1:N]) +
+            (hx*hx)*(hz*hz)*(prev_sol[1:L, 2:M+1, 1:N] + prev_sol[1:L, 0:M-1, 1:N]) +
+            (hx*hx)*(hy*hy)*(prev_sol[1:L, 1:M, 2:N+1] + prev_sol[1:L, 1:M, 0:N-1]) -
+            (hx*hx)*(hy*hy)*(hz*hz)*rho[1:L, 1:M, 1:N])/ \
+      (2.0*((hy*hy)*(hz*hz) + (hx*hx)*(hz*hz) + (hx*hx)*(hy*hy)))
 
         solLap = np.zeros_like(next_sol)
-        solLap[1:L, 1:M, 1:N] = grid.xix2Stag[0::2**gv.VDepth, npax, npax]*fd.DDXi(next_sol, L, M, N)/((2**gv.VDepth)**2) + \
-                                grid.xixxStag[0::2**gv.VDepth, npax, npax]*fd.D_Xi(next_sol, L, M, N)/(2**gv.VDepth) + \
-                                grid.ety2Stag[0::2**gv.VDepth, npax]*fd.DDEt(next_sol, L, M, N)/((2**gv.VDepth)**2) + \
-                                grid.etyyStag[0::2**gv.VDepth, npax]*fd.D_Et(next_sol, L, M, N)/(2**gv.VDepth) + \
-                                grid.ztz2Stag[0::2**gv.VDepth]*fd.DDZt(next_sol, L, M, N)/((2**gv.VDepth)**2) + \
-                                grid.ztzzStag[0::2**gv.VDepth]*fd.D_Zt(next_sol, L, M, N)/(2**gv.VDepth)
+        solLap[1:L, 1:M, 1:N] = (fd.DDXi(next_sol, L, M, N) + fd.DDEt(next_sol, L, M, N) + fd.DDZt(next_sol, L, M, N))/((2**gv.VDepth)**2)
 
         error_temp = np.abs(rho[1:L, 1:M, 1:N] - solLap[1:L, 1:M, 1:N])
         maxErr = np.amax(error_temp)
@@ -208,26 +193,7 @@ OUTPUT: gradient: 3D matrix of double precision values with same size as input m
     [L, M, N] = np.array(np.shape(function)) - 1
     gradient = np.zeros_like(function)
 
-    gradient[1:L, 1:M, 1:N] = grid.xix2Stag[0:L-1, npax, npax]*fd.DDXi(function, L, M, N) + \
-                              grid.xixxStag[0:L-1, npax, npax]*fd.D_Xi(function, L, M, N) + \
-                                    grid.ety2Stag[0:M-1, npax]*fd.DDEt(function, L, M, N) + \
-                                    grid.etyyStag[0:M-1, npax]*fd.D_Et(function, L, M, N) + \
-                                          grid.ztz2Stag[0:N-1]*fd.DDZt(function, L, M, N) + \
-                                          grid.ztzzStag[0:N-1]*fd.D_Zt(function, L, M, N)
+    gradient[1:L, 1:M, 1:N] = fd.DDXi(function, L, M, N) + fd.DDEt(function, L, M, N) + fd.DDZt(function, L, M, N)
 
     return gradient
 
-
-####################################################################################################
-
-# Limits along each direction
-# L - Along X
-# M - Along Y
-# N - Along Z
-# Data stored in arrays accessed by data[1:L, 1:M, 1:N]
-# In Python and C, the rightmost index varies fastest
-# Therefore indices in Z direction vary fastest, then along Y and finally along X
-
-L = grid.sLst[gv.sInd[0]]
-M = grid.sLst[gv.sInd[1]]
-N = grid.sLst[gv.sInd[2]]

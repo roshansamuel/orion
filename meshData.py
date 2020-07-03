@@ -47,16 +47,26 @@ sLst = [2**x + 2 for x in range(12)]
 # Data stored in arrays accessed by data[1:L, 1:M, 1:N]
 # In Python and C, the rightmost index varies fastest
 # Therefore indices in Z direction vary fastest, then along Y and finally along X
-
 L = sLst[sInd[0]]
 M = sLst[sInd[1]]
 N = sLst[sInd[2]]
+
+# Domain lengths along each direction
+xLen = dLen[0]
+yLen = dLen[1]
+zLen = dLen[2]
+
+# Stretching parameters along each direction
+xBeta = beta[0]
+yBeta = beta[1]
+zBeta = beta[2]
 
 # Define grid spacings
 hx = 1.0/(L-1)
 hy = 1.0/(M-1)
 hz = 1.0/(N-1)
 
+# Other frequently used grid constants
 hx2 = hx*hx
 hy2 = hy*hy
 hz2 = hz*hz
@@ -70,7 +80,6 @@ hx2hy2hz2 = hx2*hy2*hz2
 # Maximum number of jacobi iterations
 maxCount = 10*N*M*L
 
-# Grid metric arrays. Used by the enitre program at various points
 xColl = np.zeros(L)
 yColl = np.zeros(M)
 zColl = np.zeros(N)
@@ -78,52 +87,45 @@ xStag = np.zeros(L-1)
 yStag = np.zeros(M-1)
 zStag = np.zeros(N-1)
 
-xi_xColl = np.zeros(L)      #-- dXi/dX at all x-grid nodes
+# Grid metric arrays. Used by the non uniform solvers
+# Note that the default values of arrays initialized below corresponds to uniform grid values
+xi_xColl = np.ones(L)       #-- dXi/dX at all x-grid nodes
 xixxColl = np.zeros(L)      #-- d2Xi/dX2 at all x-grid nodes
-xix2Coll = np.zeros(L)      #-- (dXi/dX)**2 at all x-grid nodes
+xix2Coll = np.ones(L)       #-- (dXi/dX)**2 at all x-grid nodes
 
-xi_xStag = np.zeros(L-1)    #-- dXi/dX at all x-grid nodes
+xi_xStag = np.ones(L-1)     #-- dXi/dX at all x-grid nodes
 xixxStag = np.zeros(L-1)    #-- d2Xi/dX2 at all x-grid nodes
-xix2Stag = np.zeros(L-1)    #-- (dXi/dX)**2 at all x-grid nodes
+xix2Stag = np.ones(L-1)     #-- (dXi/dX)**2 at all x-grid nodes
 
-et_yColl = np.zeros(M)      #-- dEt/dY at all y-grid nodes
+et_yColl = np.ones(M)       #-- dEt/dY at all y-grid nodes
 etyyColl = np.zeros(M)      #-- d2Et/dY2 at all y-grid nodes
-ety2Coll = np.zeros(M)      #-- (dEt/dY)**2 at all y-grid nodes
+ety2Coll = np.ones(M)       #-- (dEt/dY)**2 at all y-grid nodes
 
-et_yStag = np.zeros(M-1)    #-- dEt/dY at all y-grid nodes
+et_yStag = np.ones(M-1)     #-- dEt/dY at all y-grid nodes
 etyyStag = np.zeros(M-1)    #-- d2Et/dY2 at all y-grid nodes
-ety2Stag = np.zeros(M-1)    #-- (dEt/dY)**2 at all y-grid nodes
+ety2Stag = np.ones(M-1)     #-- (dEt/dY)**2 at all y-grid nodes
 
-zt_zColl = np.zeros(N)      #-- dZt/dZ at all z-grid nodes
+zt_zColl = np.ones(N)       #-- dZt/dZ at all z-grid nodes
 ztzzColl = np.zeros(N)      #-- d2Zt/dZ2 at all z-grid nodes
-ztz2Coll = np.zeros(N)      #-- (dZt/dZ)**2 at all z-grid nodes
+ztz2Coll = np.ones(N)       #-- (dZt/dZ)**2 at all z-grid nodes
 
-zt_zStag = np.zeros(N-1)    #-- dZt/dZ at all z-grid nodes
+zt_zStag = np.ones(N-1)     #-- dZt/dZ at all z-grid nodes
 ztzzStag = np.zeros(N-1)    #-- d2Zt/dZ2 at all z-grid nodes
-ztz2Stag = np.zeros(N-1)    #-- (dZt/dZ)**2 at all z-grid nodes
+ztz2Stag = np.ones(N-1)     #-- (dZt/dZ)**2 at all z-grid nodes
 
 
-def calculateMetrics():
+def initializeGrid():
+    global L, M, N
+    global xLen, yLen, zLen
+    global xBeta, yBeta, zBeta
     global xColl, yColl, zColl
     global xStag, yStag, zStag
-    global xi_xColl, et_yColl, zt_zColl
-    global xi_xStag, et_yStag, zt_zStag
-    global xixxColl, xix2Coll, etyyColl, ety2Coll, ztzzColl, ztz2Coll
-    global xixxStag, xix2Stag, etyyStag, ety2Stag, ztzzStag, ztz2Stag
 
     xi = np.linspace(0.0, 1.0, L)
     et = np.linspace(0.0, 1.0, M)
     zt = np.linspace(0.0, 1.0, N)
 
-    xLen = dLen[0]
-    yLen = dLen[1]
-    zLen = dLen[2]
-
-    xBeta = beta[0]
-    yBeta = beta[1]
-    zBeta = beta[2]
-
-    # Calculate grid and its metrics
+    # Initialize staggered and collocated grids
     xColl = [xLen*(1.0 - np.tanh(xBeta*(1.0 - 2.0*i))/np.tanh(xBeta))/2.0 for i in xi]
     yColl = [yLen*(1.0 - np.tanh(yBeta*(1.0 - 2.0*i))/np.tanh(yBeta))/2.0 for i in et]
     zColl = [zLen*(1.0 - np.tanh(zBeta*(1.0 - 2.0*i))/np.tanh(zBeta))/2.0 for i in zt]
@@ -131,6 +133,17 @@ def calculateMetrics():
     xStag = [xLen*(1.0 - np.tanh(xBeta*(1.0 - 2.0*i))/np.tanh(xBeta))/2.0 for i in [(xi[j] + xi[j+1])/2 for j in range(len(xi) - 1)]]
     yStag = [yLen*(1.0 - np.tanh(yBeta*(1.0 - 2.0*i))/np.tanh(yBeta))/2.0 for i in [(et[j] + et[j+1])/2 for j in range(len(et) - 1)]]
     zStag = [zLen*(1.0 - np.tanh(zBeta*(1.0 - 2.0*i))/np.tanh(zBeta))/2.0 for i in [(zt[j] + zt[j+1])/2 for j in range(len(zt) - 1)]]
+
+
+def calculateMetrics():
+    global xLen, yLen, zLen
+    global xBeta, yBeta, zBeta
+    global xColl, yColl, zColl
+    global xStag, yStag, zStag
+    global xi_xColl, et_yColl, zt_zColl
+    global xi_xStag, et_yStag, zt_zStag
+    global xixxColl, xix2Coll, etyyColl, ety2Coll, ztzzColl, ztz2Coll
+    global xixxStag, xix2Stag, etyyStag, ety2Stag, ztzzStag, ztz2Stag
 
     # Grid metrics for both staggered and collocated grids
     xi_xColl = np.array([np.tanh(xBeta)/(xBeta*xLen*(1.0 - ((1.0 - 2.0*k/xLen)*np.tanh(xBeta))**2.0)) for k in xColl])
@@ -156,3 +169,4 @@ def calculateMetrics():
     zt_zStag = np.array([np.tanh(zBeta)/(zBeta*zLen*(1.0 - ((1.0 - 2.0*i/zLen)*np.tanh(zBeta))**2.0)) for i in zStag])
     ztzzStag = np.array([-4.0*(np.tanh(zBeta)**3.0)*(1.0 - 2.0*i/zLen)/(zBeta*zLen*zLen*(1.0 - (np.tanh(zBeta)*(1.0 - 2.0*i/zLen)**2.0)**2.0)) for i in zStag])
     ztz2Stag = np.array([i*i for i in zt_zStag])
+
