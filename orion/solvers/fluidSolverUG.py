@@ -32,8 +32,8 @@
 ####################################################################################################
 
 # Import all necessary modules
+from orion.solvers import poissonSolverUG as ps
 from orion import boundaryConditions as bc
-from orion import poissonSolverUG as ps
 from orion import calculateFD as fd
 from orion import meshData as grid
 from orion import globalVars as gv
