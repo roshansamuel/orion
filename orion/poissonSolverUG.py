@@ -32,10 +32,10 @@
 ####################################################################################################
 
 # Import all necessary modules
-import boundaryConditions as bc
-import calculateFD as fd
-import meshData as grid
-import globalVars as gv
+from orion import boundaryConditions as bc
+from orion import calculateFD as fd
+from orion import meshData as grid
+from orion import globalVars as gv
 import numpy as np
 
 # Get limits from grid object

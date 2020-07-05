@@ -32,46 +32,43 @@
 ####################################################################################################
 
 # Import all necessary modules
-from meshData import hx, hy, hz, hx2, hy2, hz2
-import numpy as np
+from orion.meshData import xColl, yColl, zColl
+from orion.globalVars import fwMode
+import h5py as hp
 
-def DDXi(inpFld, Nx, Ny, Nz):
-    outFld = np.zeros_like(inpFld)
-    outFld[1:Nx, 1:Ny, 1:Nz] = (inpFld[0:Nx-1, 1:Ny, 1:Nz] - 2.0*inpFld[1:Nx, 1:Ny, 1:Nz] + inpFld[2:Nx+1, 1:Ny, 1:Nz])/hx2
+def writeSoln(U, V, W, P, time):
+    L, M ,N = tuple(map(lambda i: i - 1, P.shape))
 
-    return outFld[1:Nx, 1:Ny, 1:Nz]
+    if fwMode == "ASCII":
+        fName = "Soln_" + "{0:09.5f}".format(time) + ".dat"
+        print("Writing solution file: ", fName)
 
+        ofFile = open(fName, 'w')
+        ofFile.write("VARIABLES = X, Y, Z, U, V, W, P\n")
+        ofFile.write("ZONE T=S\tI={0}\tJ={1}\tK={2}\tF=POINT\tSOLUTIONTIME={3}\n".format(L, M, N, time))
+        for i in range(0, N):
+            for j in range(0, M):
+                for k in range(0, L):
+                    ofFile.write("{0:23.16f}\t{1:23.16f}\t{2:23.16f}\t{3:23.16f}\t{4:23.16f}\t{5:23.16f}\t{6:23.16f}\n".format(
+                                xColl[k], yColl[j], zColl[i],
+                                (U[k, j, i] + U[k, j+1, i] + U[k, j, i+1] + U[k, j+1, i+1])/4.0,
+                                (V[k, j, i] + V[k+1, j, i] + V[k, j, i+1] + V[k+1, j, i+1])/4.0,
+                                (W[k, j, i] + W[k+1, j, i] + W[k, j+1, i] + W[k+1, j+1, i])/4.0,
+                                (P[k, j, i] + P[k+1, j, i] + P[k, j+1, i] + P[k+1, j+1, i] +
+                                 P[k, j, i+1] + P[k+1, j, i+1] + P[k, j+1, i+1] + P[k+1, j+1, i+1])/8.0))
 
-def DDEt(inpFld, Nx, Ny, Nz):
-    outFld = np.zeros_like(inpFld)
-    outFld[1:Nx, 1:Ny, 1:Nz] = (inpFld[1:Nx, 0:Ny-1, 1:Nz] - 2.0*inpFld[1:Nx, 1:Ny, 1:Nz] + inpFld[1:Nx, 2:Ny+1, 1:Nz])/hy2
+        ofFile.close()
 
-    return outFld[1:Nx, 1:Ny, 1:Nz]
+    elif fwMode == "HDF5":
+        fName = "Soln_" + "{0:09.5f}.h5".format(time)
+        print("Writing solution file: ", fName)
 
+        f = hp.File(fName, "w")
 
-def DDZt(inpFld, Nx, Ny, Nz):
-    outFld = np.zeros_like(inpFld)
-    outFld[1:Nx, 1:Ny, 1:Nz] = (inpFld[1:Nx, 1:Ny, 0:Nz-1] - 2.0*inpFld[1:Nx, 1:Ny, 1:Nz] + inpFld[1:Nx, 1:Ny, 2:Nz+1])/hz2
+        dset = f.create_dataset("U", data = U)
+        dset = f.create_dataset("V", data = V)
+        dset = f.create_dataset("W", data = W)
+        dset = f.create_dataset("P", data = P)
 
-    return outFld[1:Nx, 1:Ny, 1:Nz]
+        f.close()
 
-
-def D_Xi(inpFld, Nx, Ny, Nz):
-    outFld = np.zeros_like(inpFld)
-    outFld[1:Nx, 1:Ny, 1:Nz] = (inpFld[2:Nx+1, 1:Ny, 1:Nz] - inpFld[0:Nx-1, 1:Ny, 1:Nz])*0.5/hx
-
-    return outFld[1:Nx, 1:Ny, 1:Nz]
-
-
-def D_Et(inpFld, Nx, Ny, Nz):
-    outFld = np.zeros_like(inpFld)
-    outFld[1:Nx, 1:Ny, 1:Nz] = (inpFld[1:Nx, 2:Ny+1, 1:Nz] - inpFld[1:Nx, 0:Ny-1, 1:Nz])*0.5/hy
-
-    return outFld[1:Nx, 1:Ny, 1:Nz]
-
-
-def D_Zt(inpFld, Nx, Ny, Nz):
-    outFld = np.zeros_like(inpFld)
-    outFld[1:Nx, 1:Ny, 1:Nz] = (inpFld[1:Nx, 1:Ny, 2:Nz+1] - inpFld[1:Nx, 1:Ny, 0:Nz-1])*0.5/hz
-
-    return outFld[1:Nx, 1:Ny, 1:Nz]

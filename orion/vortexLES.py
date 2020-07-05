@@ -32,8 +32,8 @@
 ####################################################################################################
 
 # Import all necessary modules
-import meshData as grid
-import globalVars as gv
+from orion import meshData as grid
+from orion import globalVars as gv
 import numpy as np
 
 # Function to compute and add turbulent viscosity from LES model

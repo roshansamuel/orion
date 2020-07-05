@@ -31,7 +31,7 @@
 #
 ####################################################################################################
 
-from globalVars import sInd, dLen, beta
+from orion.globalVars import sInd, dLen, beta
 import numpy as np
 
 # Redefine frequently used numpy object

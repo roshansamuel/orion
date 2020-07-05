@@ -31,7 +31,7 @@
 #
 ####################################################################################################
 
-from globalVars import xyPeriodic, probType
+from orion.globalVars import xyPeriodic, probType
 
 # No-slip and no-penetration BCs
 def imposeUBCs(U):
