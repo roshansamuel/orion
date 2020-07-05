@@ -48,9 +48,9 @@ def multigrid(H):
     chMat = np.ones([L+1, M+1, N+1])
     for i in range(gv.vcCnt):
         Pp = v_cycle(Pp, H)
-        chMat = laplace(Pp)
 
-    print("Error after multigrid is ", np.amax(np.abs(H[1:L, 1:M, 1:N] - chMat[1:L, 1:M, 1:N])))
+        chMat = laplace(Pp)
+        print("Residual after V-Cycle ", i, " is ", np.amax(np.abs(H[1:L, 1:M, 1:N] - chMat[1:L, 1:M, 1:N])))
 
     return Pp
 
