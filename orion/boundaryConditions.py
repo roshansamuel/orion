@@ -31,162 +31,247 @@
 #
 ####################################################################################################
 
-from orion.globalVars import xyPeriodic, probType
+from orion.globalVars import xyPeriodic, probType, planar
 
-# No-slip and no-penetration BCs
-def imposeUBCs(U):
-    # Periodic BCs along X and Y directions
-    if xyPeriodic:
-        # Left wall
-        U[0, :, :] = U[-2, :, :]
+if planar:
+    # No-slip and no-penetration BCs
+    def imposeUBCs(U):
+        # Periodic BCs along X and Y directions
+        if xyPeriodic:
+            # Left wall
+            U[0, :] = U[-2, :]
 
-        # Right wall
-        U[-1, :, :] = U[1, :, :]
+            # Right wall
+            U[-1, :] = U[1, :]
 
-        # Front wall
-        U[:, 0, :] = U[:, -3, :]
+        # No-slip and no-penetration BCs
+        else:
+            # Left wall
+            U[0, :] = -U[1, :]
 
-        # Back wall
-        U[:, -1, :] = U[:, 2, :]
+            # Right wall
+            U[-1, :] = -U[-2, :]
+
+        # Bottom wall
+        U[:, 0] = 0.0
+
+        # Top wall
+        if probType == 0:
+            # Moving lid on top for LDC
+            U[:, -1] = 1.0
+        elif probType == 1:
+            U[:, -1] = 0.0
+
+        return U
+
 
     # No-slip and no-penetration BCs
-    else:
-        # Left wall
-        U[0, :, :] = -U[1, :, :]
+    def imposeWBCs(W):
+        # Periodic BCs along X and Y directions
+        if xyPeriodic:
+            # Left wall
+            W[0, :] = W[-3, :]
 
-        # Right wall
-        U[-1, :, :] = -U[-2, :, :]
+            # Right wall
+            W[-1, :] = W[2, :]
 
-        # Front wall
-        U[:, 0, :] = 0.0
+        # No-slip and no-penetration BCs
+        else:
+            # Left wall
+            W[0, :] = 0.0
 
-        # Back wall
-        U[:, -1, :] = 0.0
+            # Right wall
+            W[-1, :] = 0.0
 
-    # Bottom wall
-    U[:, :, 0] = 0.0
+        # Bottom wall
+        W[:, 0] = -W[:, 1]
 
-    # Top wall
-    if probType == 0:
-        # Moving lid on top for LDC
-        U[:, :, -1] = 1.0
-    elif probType == 1:
-        U[:, :, -1] = 0.0
+        # Top wall
+        W[:, -1] = -W[:, -2]
 
-    return U
-
-
-# No-slip and no-penetration BCs
-def imposeVBCs(V):
-    # Periodic BCs along X and Y directions
-    if xyPeriodic:
-        # Left wall
-        V[0, :, :] = V[-3, :, :]
-
-        # Right wall
-        V[-1, :, :] = V[2, :, :]
-
-        # Front wall
-        V[:, 0, :] = V[:, -2, :]
-
-        # Back wall
-        V[:, -1, :] = V[:, 1, :]
-
-    # No-slip and no-penetration BCs
-    else:
-        # Left wall
-        V[0, :, :] = 0.0
-
-        # Right wall
-        V[-1, :, :] = 0.0
-
-        # Front wall
-        V[:, 0, :] = -V[:, 1, :]
-
-        # Back wall
-        V[:, -1, :] = -V[:, -2, :]
-
-    # Bottom wall
-    V[:, :, 0] = 0.0
-
-    # Top wall
-    V[:, :, -1] = 0.0
-
-    return V
+        return W
 
 
-# No-slip and no-penetration BCs
-def imposeWBCs(W):
-    # Periodic BCs along X and Y directions
-    if xyPeriodic:
-        # Left wall
-        W[0, :, :] = W[-3, :, :]
+    def imposePBCs(P):
+        # Periodic BCs along X and Y directions
+        if xyPeriodic:
+            # Left wall
+            P[0, :] = P[-3, :]
 
-        # Right wall
-        W[-1, :, :] = W[2, :, :]
+            # Right wall
+            P[-1, :] = P[2, :]
 
-        # Front wall
-        W[:, 0, :] = W[:, -3, :]
+        # Neumann boundary condition on pressure
+        else:
+            # Left wall
+            P[0, :] = P[2, :]
 
-        # Back wall
-        W[:, -1, :] = W[:, 2, :]
+            # Right wall
+            P[-1, :] = P[-3, :]
+
+        # Bottom wall
+        P[:, 0] = P[:, 2]
+
+        # Top wall
+        P[:, -1] = P[:, -3]
+
+        return P
+else:
 
     # No-slip and no-penetration BCs
-    else:
-        # Left wall
-        W[0, :, :] = 0.0
+    def imposeUBCs(U):
+        # Periodic BCs along X and Y directions
+        if xyPeriodic:
+            # Left wall
+            U[0, :, :] = U[-2, :, :]
 
-        # Right wall
-        W[-1, :, :] = 0.0
+            # Right wall
+            U[-1, :, :] = U[1, :, :]
 
-        # Front wall
-        W[:, 0, :] = 0.0
+            # Front wall
+            U[:, 0, :] = U[:, -3, :]
 
-        # Back wall
-        W[:, -1, :] = 0.0
+            # Back wall
+            U[:, -1, :] = U[:, 2, :]
 
-    # Bottom wall
-    W[:, :, 0] = -W[:, :, 1]
+        # No-slip and no-penetration BCs
+        else:
+            # Left wall
+            U[0, :, :] = -U[1, :, :]
 
-    # Top wall
-    W[:, :, -1] = -W[:, :, -2]
+            # Right wall
+            U[-1, :, :] = -U[-2, :, :]
 
-    return W
+            # Front wall
+            U[:, 0, :] = 0.0
+
+            # Back wall
+            U[:, -1, :] = 0.0
+
+        # Bottom wall
+        U[:, :, 0] = 0.0
+
+        # Top wall
+        if probType == 0:
+            # Moving lid on top for LDC
+            U[:, :, -1] = 1.0
+        elif probType == 1:
+            U[:, :, -1] = 0.0
+
+        return U
 
 
-def imposePBCs(P):
-    # Periodic BCs along X and Y directions
-    if xyPeriodic:
-        # Left wall
-        P[0, :, :] = P[-3, :, :]
+    # No-slip and no-penetration BCs
+    def imposeVBCs(V):
+        # Periodic BCs along X and Y directions
+        if xyPeriodic:
+            # Left wall
+            V[0, :, :] = V[-3, :, :]
 
-        # Right wall
-        P[-1, :, :] = P[2, :, :]
+            # Right wall
+            V[-1, :, :] = V[2, :, :]
 
-        # Front wall
-        P[:, 0, :] = P[:, -3, :]
+            # Front wall
+            V[:, 0, :] = V[:, -2, :]
 
-        # Back wall
-        P[:, -1, :] = P[:, 2, :]
+            # Back wall
+            V[:, -1, :] = V[:, 1, :]
 
-    # Neumann boundary condition on pressure
-    else:
-        # Left wall
-        P[0, :, :] = P[2, :, :]
+        # No-slip and no-penetration BCs
+        else:
+            # Left wall
+            V[0, :, :] = 0.0
 
-        # Right wall
-        P[-1, :, :] = P[-3, :, :]
+            # Right wall
+            V[-1, :, :] = 0.0
 
-        # Front wall
-        P[:, 0, :] = P[:, 2, :]
+            # Front wall
+            V[:, 0, :] = -V[:, 1, :]
 
-        # Back wall
-        P[:, -1, :] = P[:, -3, :]
+            # Back wall
+            V[:, -1, :] = -V[:, -2, :]
 
-    # Bottom wall
-    P[:, :, 0] = P[:, :, 2]
+        # Bottom wall
+        V[:, :, 0] = 0.0
 
-    # Top wall
-    P[:, :, -1] = P[:, :, -3]
+        # Top wall
+        V[:, :, -1] = 0.0
 
-    return P
+        return V
+
+
+    # No-slip and no-penetration BCs
+    def imposeWBCs(W):
+        # Periodic BCs along X and Y directions
+        if xyPeriodic:
+            # Left wall
+            W[0, :, :] = W[-3, :, :]
+
+            # Right wall
+            W[-1, :, :] = W[2, :, :]
+
+            # Front wall
+            W[:, 0, :] = W[:, -3, :]
+
+            # Back wall
+            W[:, -1, :] = W[:, 2, :]
+
+        # No-slip and no-penetration BCs
+        else:
+            # Left wall
+            W[0, :, :] = 0.0
+
+            # Right wall
+            W[-1, :, :] = 0.0
+
+            # Front wall
+            W[:, 0, :] = 0.0
+
+            # Back wall
+            W[:, -1, :] = 0.0
+
+        # Bottom wall
+        W[:, :, 0] = -W[:, :, 1]
+
+        # Top wall
+        W[:, :, -1] = -W[:, :, -2]
+
+        return W
+
+
+    def imposePBCs(P):
+        # Periodic BCs along X and Y directions
+        if xyPeriodic:
+            # Left wall
+            P[0, :, :] = P[-3, :, :]
+
+            # Right wall
+            P[-1, :, :] = P[2, :, :]
+
+            # Front wall
+            P[:, 0, :] = P[:, -3, :]
+
+            # Back wall
+            P[:, -1, :] = P[:, 2, :]
+
+        # Neumann boundary condition on pressure
+        else:
+            # Left wall
+            P[0, :, :] = P[2, :, :]
+
+            # Right wall
+            P[-1, :, :] = P[-3, :, :]
+
+            # Front wall
+            P[:, 0, :] = P[:, 2, :]
+
+            # Back wall
+            P[:, -1, :] = P[:, -3, :]
+
+        # Bottom wall
+        P[:, :, 0] = P[:, :, 2]
+
+        # Top wall
+        P[:, :, -1] = P[:, :, -3]
+
+        return P

@@ -36,6 +36,7 @@ from orion.meshData import xColl, yColl, zColl
 from orion.globalVars import fwMode
 import h5py as hp
 
+
 def writeSoln(U, V, W, P, time):
     L, M ,N = tuple(map(lambda i: i - 1, P.shape))
 
@@ -67,6 +68,39 @@ def writeSoln(U, V, W, P, time):
 
         dset = f.create_dataset("U", data = U)
         dset = f.create_dataset("V", data = V)
+        dset = f.create_dataset("W", data = W)
+        dset = f.create_dataset("P", data = P)
+
+        f.close()
+
+
+def writeSoln(U, W, P, time):
+    L, N = tuple(map(lambda i: i - 1, P.shape))
+
+    if fwMode == "ASCII":
+        fName = "Soln_" + "{0:09.5f}".format(time) + ".dat"
+        print("Writing solution file: ", fName)
+
+        ofFile = open(fName, 'w')
+        ofFile.write("VARIABLES = X, Z, U, V, W, P\n")
+        ofFile.write("ZONE T=S\tI={0}\tK={1}\tF=POINT\tSOLUTIONTIME={2}\n".format(L, N, time))
+        for i in range(0, N):
+            for k in range(0, L):
+                ofFile.write("{0:23.16f}\t{1:23.16f}\t{2:23.16f}\t{3:23.16f}\t{4:23.16f}\n".format(
+                            xColl[k], zColl[i],
+                            (U[k, i] + U[k, i+1])/2.0,
+                            (W[k, i] + W[k+1, i])/2.0,
+                            (P[k, i] + P[k+1, i] + P[k, i+1] + P[k+1, i+1])/4.0))
+
+        ofFile.close()
+
+    elif fwMode == "HDF5":
+        fName = "Soln_" + "{0:09.5f}.h5".format(time)
+        print("Writing solution file: ", fName)
+
+        f = hp.File(fName, "w")
+
+        dset = f.create_dataset("U", data = U)
         dset = f.create_dataset("W", data = W)
         dset = f.create_dataset("P", data = P)
 

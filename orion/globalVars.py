@@ -36,6 +36,10 @@ import numpy as np
 
 ############################################ USER PARAMETERS #######################################
 
+# Set whether the simulation is going to be 2D or 3D
+# If 2D, set the below flag to True
+planar = True
+
 # Set the number of processors for parallel computing (under development) with multiprocessing module
 nProcs = 8
 
@@ -83,7 +87,7 @@ Re = 1000
 tolerance = 0.00001
 
 # Depth of each V-cycle in multigrid
-VDepth = 3
+VDepth = 4
 
 # Number of V-cycles to be computed
 vcCnt = 10

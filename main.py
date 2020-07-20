@@ -38,9 +38,15 @@ import numpy as np
 import time
 
 if gv.uniformGrid:
-    from orion.solvers import fluidSolverUG_d3 as fs
+    if gv.planar:
+        from orion.solvers import fluidSolverUG_d2 as fs
+    else:
+        from orion.solvers import fluidSolverUG_d3 as fs
 else:
-    from orion.solvers import fluidSolverNU_d3 as fs
+    if gv.planar:
+        from orion.solvers import fluidSolverNU_d2 as fs
+    else:
+        from orion.solvers import fluidSolverNU_d3 as fs
 
 # Main segment of code.
 def main():

@@ -71,6 +71,8 @@ def initFields():
         # Initial condition for channel flow
         U[:, :] = 1.0
 
+    ps.initVariables()
+
 
 def euler():
     global N, L
