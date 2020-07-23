@@ -32,11 +32,20 @@
 ####################################################################################################
 
 # Import all necessary modules
-from orion import boundaryConditions as bc
 from orion import calculateFD as fd
 from orion import meshData as grid
 from orion import globalVars as gv
 import numpy as np
+
+## For testing MG solver only
+if gv.testPoisson:
+    from mayavi import mlab
+
+# For debug only
+np.set_printoptions(precision=3, linewidth=160, suppress=False)
+
+############################### GLOBAL VARIABLES ################################
+
 
 # Get array of grid sizes are tuples corresponding to each level of V-Cycle
 N = [(grid.sLst[x[0]] - 1, grid.sLst[x[2]] - 1) for x in [gv.sInd - y for y in range(gv.VDepth + 1)]]
@@ -54,7 +63,7 @@ hx2 = [x*x for x in hx]
 hz2 = [x*x for x in hz]
 
 # Cross product of hx and hz, used in finite difference formulae
-hzhx = [hx[i]*hz[i] for i in range(gv.VDepth + 1)]
+hzhx = [hx2[i]*hz2[i] for i in range(gv.VDepth + 1)]
 
 # Maximum number of iterations while solving at coarsest level
 maxCount = 10*N[-1][0]*N[-1][1]
@@ -64,6 +73,9 @@ vLev = 0
 
 # Flag to determine if non-zero homogenous BC has to be applied or not
 zeroBC = False
+
+
+############################## MULTI-GRID SOLVER ###############################
 
 
 def multigrid(H):
@@ -85,21 +97,7 @@ def multigrid(H):
     return pData[0]
 
 
-# Initialize the arrays used in MG algorithm
-def initVariables():
-    global N
-    global pData, rData, sData, iTemp
-
-    nList = np.array(N)
-
-    rData = [np.zeros(tuple(x)) for x in nList]
-    pData = [np.zeros(tuple(x)) for x in nList + 2]
-
-    sData = [np.zeros_like(x) for x in pData]
-    iTemp = [np.zeros_like(x) for x in pData]
-
-
-#Multigrid solution without the use of recursion
+# Multigrid V-cycle without the use of recursion
 def v_cycle():
     global vLev, zeroBC
 
@@ -117,37 +115,37 @@ def v_cycle():
         # Copy smoothed pressure for later use
         sData[vLev] = np.copy(pData[vLev])
 
+        # Restrict to coarser level
+        restrict()
 
-    print(pData[0].shape)
-    print(rData[0].shape)
-    exit()
+        # Reinitialize pressure at coarser level to 0 - this is critical!
+        pData[vLev].fill(0.0)
 
-    H_rsdl = H - laplace(P)
-
-    # Restriction operations
-    for i in range(gv.VDepth):
-        gv.sInd -= 1
-        H_rsdl = restrict(H_rsdl)
-
-    # Solving the system after restriction
-    P_corr = solve(H_rsdl, (2.0**gv.VDepth)*grid.hx, (2.0**gv.VDepth)*grid.hz)
+        # If the coarsest level is reached, solve. Otherwise, keep smoothing!
+        if vLev == gv.VDepth:
+            solve()
+        else:
+            smooth(gv.preSm)
 
     # Prolongation operations
     for i in range(gv.VDepth):
-        gv.sInd += 1
-        P_corr = prolong(P_corr)
-        H_rsdl = prolong(H_rsdl)
-        P_corr = smooth(P_corr, H_rsdl, grid.hx, grid.hz, gv.proSm, gv.VDepth-i-1)
+        # Prolong pressure to next finer level
+        prolong()
 
-    P += P_corr
+        # Add previously stored smoothed data
+        pData[vLev] += sData[vLev]
 
-    # Post-smoothing
-    P = smooth(P, H, grid.hx, grid.hz, gv.pstSm, 0)
+        # Apply homogenous BC so long as we are not at finest mesh (at which vLev = 0)
+        if vLev:
+            zeroBC = True
+        else:
+            zeroBC = False
 
-    return P
+        # Post-smoothing
+        smooth(gv.pstSm)
 
 
-#Uses jacobi iteration to smooth the solution passed to it.
+# Smoothens the solution sCount times using Gauss-Seidel smoother
 def smooth(sCount):
     global N
     global hx2
@@ -156,7 +154,7 @@ def smooth(sCount):
 
     n = N[vLev]
     for iCnt in range(sCount):
-        bc.imposePBCs(pData[vLev])
+        imposeBC(pData[vLev])
 
         # Gauss-Seidel smoothing
         for i in range(1, n[0]+1):
@@ -165,6 +163,8 @@ def smooth(sCount):
                                      hx2[vLev]*(pData[vLev][i, j+1] + pData[vLev][i, j-1]) -
                                      hzhx[vLev]*rData[vLev][i-1, j-1]) / (2.0*(hx2[vLev] + hz2[vLev]))
 
+    imposeBC(pData[vLev])
+
 
 # Compute the residual and store it into iTemp array
 def calcResidual():
@@ -172,83 +172,97 @@ def calcResidual():
     global iTemp, rData, pData
 
     iTemp[vLev].fill(0.0)
+    #tempMat = laplace(pData[vLev])
     iTemp[vLev][1:-1, 1:-1] = rData[vLev] - laplace(pData[vLev])
 
+    #print(iTemp[vLev][-7:, -7:])
+    #print(tempMat.shape)
+    #print(tempMat[-6:, -6:])
+    #print(pData[vLev])
+    #exit()
 
-#Reduces the size of the array to a lower level, 2^(n-1)+1.
-def restrict(function):
-    [rx, rz] = [grid.sLst[gv.sInd[0]], grid.sLst[gv.sInd[2]]]
-    restricted = np.zeros([rx + 1, rz + 1])
 
-    for i in range(1, rx):
+# Reduces the size of the array to a lower level, 2^(n - 1) + 1
+def restrict():
+    global N
+    global vLev
+    global iTemp, rData
+
+    pLev = vLev
+    vLev += 1
+
+    n = N[vLev]
+    for i in range(1, n[0] + 1):
         i2 = i*2
-        for k in range(1, rz):
+        for k in range(1, n[1] + 1):
             k2 = k*2
-            restricted[i, k] = 0.25*(function[i2 - 1, k2 - 1]) + \
-                              0.125*(function[i2 + 1, k2] + function[i2 - 1, k2] + function[i2, k2 + 1] + function[i2, k2 - 1]) + \
-                             0.0625*(function[i2 + 1, k2 + 1] + function[i2 + 1, k2 - 1] + function[i2 - 1, k2 + 1] + function[i2 - 1, k2 - 1])
-
-    return restricted
+            rData[vLev][i-1, k-1] = 0.25*(iTemp[pLev][i2 - 1, k2 - 1]) + \
+                                   0.125*(iTemp[pLev][i2 - 2, k2 - 1] + iTemp[pLev][i2, k2 - 1] + iTemp[pLev][i2 - 1, k2 - 2] + iTemp[pLev][i2 - 1, k2]) + \
+                                  0.0625*(iTemp[pLev][i2 - 2, k2 - 2] + iTemp[pLev][i2, k2 - 2] + iTemp[pLev][i2 - 2, k2] + iTemp[pLev][i2, k2])
 
 
-# Increases the size of the array to a higher level, 2^(n + 1) + 1
-def prolong(function):
-    [rx, rz] = [grid.sLst[gv.sInd[0]], grid.sLst[gv.sInd[2]]]
-    prolonged = np.zeros([rx + 1, rz + 1])
+# Solves at coarsest level using an iterative solver
+def solve():
+    global vLev
+    global N, hx2
+    global maxCount
+    global pData, rData
 
-    [lx, lz] = np.shape(function)
-    for i in range(1, rx):
-        i2 = i/2;
-        if isOdd(i):
-            for k in range(1, rz):
-                k2 = k/2;
-                if isOdd(k):
-                    prolonged[i, k] = (function[i2, k2] + function[i2, k2 + 1] + function[i2 + 1, k2] + function[i2 + 1, k2 + 1])/4.0
-                else:
-                    prolonged[i, k] = (function[i2, k2] + function[i2 + 1, k2])/2.0
-        else:
-            for k in range(1, rz):
-                k2 = k/2;
-                if isOdd(k):
-                    prolonged[i, k] = (function[i2, k2] + function[i2, k2 + 1])/2.0
-                else:
-                    prolonged[i, k] = function[i2, k2]
+    n = N[vLev]
+    solLap = np.zeros(n)
 
-    return prolonged
-
-
-#This function uses the Jacobi iterative solver, using the grid spacing
-def solve(rho, hx, hz):
-    # 1 subtracted from shape to account for ghost points
-    [L, N] = np.array(np.shape(rho)) - 1
-    prev_sol = np.zeros_like(rho)
-    next_sol = np.zeros_like(rho)
     jCnt = 0
-
     while True:
-        next_sol[1:L, 1:N] = ((hz*hz)*(prev_sol[2:L+1, 1:N] + prev_sol[0:L-1, 1:N]) +
-                              (hx*hx)*(prev_sol[1:L, 2:N+1] + prev_sol[1:L, 0:N-1]) -
-                              (hx*hx)*(hz*hz)*rho[1:L, 1:N]) / (2.0*((hz*hz) + (hx*hx)))
+        imposeBC(pData[vLev])
 
-        solLap = np.zeros_like(next_sol)
-        solLap[1:L, 1:N] = (fd.DDXi(next_sol, L, N) + fd.DDZt(next_sol, L, N))/((2**gv.VDepth)**2)
+        # Gauss-Seidel iterative solver
+        for i in range(1, n[0]+1):
+            for j in range(1, n[1]+1):
+                pData[vLev][i, j] = (hz2[vLev]*(pData[vLev][i+1, j] + pData[vLev][i-1, j]) +
+                                     hx2[vLev]*(pData[vLev][i, j+1] + pData[vLev][i, j-1]) -
+                                     hzhx[vLev]*rData[vLev][i-1, j-1]) / (2.0*(hx2[vLev] + hz2[vLev]))
 
-        error_temp = np.abs(rho[1:L, 1:N] - solLap[1:L, 1:N])
-        maxErr = np.amax(error_temp)
+        maxErr = np.amax(np.abs(rData[vLev] - laplace(pData[vLev])))
         if maxErr < gv.tolerance:
             break
 
         jCnt += 1
-        if jCnt > 10*N*L:
+        if jCnt > maxCount:
             print("ERROR: Jacobi not converging. Aborting")
-            print("Maximum error: ", maxErr)
             quit()
 
-        prev_sol = np.copy(next_sol)
-
-    return prev_sol
+    imposeBC(pData[vLev])
 
 
+# Increases the size of the array to a higher level, 2^(n + 1) + 1
+def prolong():
+    global N
+    global vLev
+    global pData
+
+    pLev = vLev
+    vLev -= 1
+
+    n = N[vLev]
+    for i in range(1, n[0] + 1):
+        i2 = int(i/2) + 1
+        if i % 2:
+            for k in range(1, n[1] + 1):
+                k2 = int(k/2) + 1
+                if k % 2:
+                    pData[vLev][i, k] = pData[pLev][i2, k2]
+                else:
+                    pData[vLev][i, k] = (pData[pLev][i2, k2] + pData[pLev][i2, k2 - 1])*0.5
+        else:
+            for k in range(1, n[1] + 1):
+                k2 = int(k/2) + 1
+                if k % 2:
+                    pData[vLev][i, k] = (pData[pLev][i2, k2] + pData[pLev][i2 - 1, k2])*0.5
+                else:
+                    pData[vLev][i, k] = (pData[pLev][i2, k2] + pData[pLev][i2, k2 - 1] + pData[pLev][i2 - 1, k2] + pData[pLev][i2 - 1, k2 - 1])*0.25
+
+
+# Computes the 2D laplacian of function
 def laplace(function):
     global vLev
     global N, hx2
@@ -260,4 +274,123 @@ def laplace(function):
                 (function[1:-1, :n[1]] - 2.0*function[1:-1, 1:n[1]+1] + function[1:-1, 2:])/hz2[vLev])
 
     return gradient
+
+
+# Initialize the arrays used in MG algorithm
+def initVariables():
+    global N
+    global pData, rData, sData, iTemp
+
+    nList = np.array(N)
+
+    rData = [np.zeros(tuple(x)) for x in nList]
+    pData = [np.zeros(tuple(x)) for x in nList + 2]
+
+    sData = [np.zeros_like(x) for x in pData]
+    iTemp = [np.zeros_like(x) for x in pData]
+
+
+############################## BOUNDARY CONDITION ###############################
+
+
+# The name of this function is self-explanatory. It imposes BC on P
+def imposeBC(P):
+    global zeroBC
+    global pWallX, pWallZ
+
+    if gv.testPoisson:
+        # Dirichlet BC
+        if zeroBC:
+            # Homogenous BC
+            # Left Wall
+            P[0, :] = -P[2, :]
+
+            # Right Wall
+            P[-1, :] = -P[-3, :]
+
+            # Bottom wall
+            P[:, 0] = -P[:, 2]
+
+            # Top wall
+            P[:, -1] = -P[:, -3]
+
+        else:
+            # Non-homogenous BC
+            # Left Wall
+            P[0, :] = 2.0*pWallX - P[2, :]
+
+            # Right Wall
+            P[-1, :] = 2.0*pWallX - P[-3, :]
+
+            # Bottom wall
+            P[:, 0] = 2.0*pWallZ - P[:, 2]
+
+            # Top wall
+            P[:, -1] = 2.0*pWallZ - P[:, -3]
+
+    else:
+        # Periodic BCs along X and Y directions
+        if gv.xyPeriodic:
+            # Left wall
+            P[0, :] = P[-3, :]
+
+            # Right wall
+            P[-1, :] = P[2, :]
+
+        # Neumann boundary condition on pressure
+        else:
+            # Left wall
+            P[0, :] = P[2, :]
+
+            # Right wall
+            P[-1, :] = P[-3, :]
+
+        # Bottom wall
+        P[:, 0] = P[:, 2]
+
+        # Top wall
+        P[:, -1] = P[:, -3]
+
+
+############################### TEST CASE DETAIL ################################
+
+
+# Calculate the analytical solution and its corresponding Dirichlet BC values
+def initDirichlet():
+    global N
+    global hx
+    global pAnlt, pData
+    global pWallX, pWallZ
+
+    n = N[0]
+
+    # Compute analytical solution, (r^2)/4
+    pAnlt = np.zeros_like(pData[0])
+
+    halfIndX = int(n[0]/2) + 1
+    halfIndZ = int(n[1]/2) + 1
+    for i in range(n[0] + 2):
+        xDist = hx[0]*(i - halfIndX)
+        for j in range(n[1] + 2):
+            zDist = hz[0]*(j - halfIndZ)
+            pAnlt[i, j] = (xDist*xDist + zDist*zDist)/4.0
+
+    # Value of P at wall according to analytical solution
+    pWallX = pAnlt[1,:]
+    pWallZ = pAnlt[:,1]
+
+
+############################### PLOTTING ROUTINE ################################
+
+
+def plotSoln(pSoln):
+    global pAnlt
+
+    mlab.imshow(pSoln[1:-1, 1:-1])
+    mlab.colorbar(orientation='vertical')
+    mlab.show()
+
+    mlab.imshow(pAnlt[1:-1, 1:-1])
+    mlab.colorbar(orientation='vertical')
+    mlab.show()
 

@@ -40,6 +40,9 @@ import numpy as np
 # If 2D, set the below flag to True
 planar = True
 
+# Set below flag to True if the Poisson solver is being tested
+testPoisson = True
+
 # Set the number of processors for parallel computing (under development) with multiprocessing module
 nProcs = 8
 
@@ -84,22 +87,19 @@ tMax = 0.1
 Re = 1000
 
 # Tolerance value in Jacobi iterations
-tolerance = 0.00001
+tolerance = 1.0e-6
 
 # Depth of each V-cycle in multigrid
 VDepth = 4
 
 # Number of V-cycles to be computed
-vcCnt = 10
+vcCnt = 14
 
 # Number of iterations during pre-smoothing
-preSm = 10
+preSm = 2
 
 # Number of iterations during post-smoothing
-pstSm = 40
-
-# Number of iterations during smoothing in between prolongation operators
-proSm = 30
+pstSm = 2
 
 ######################################## END OF USER PARAMETERS ####################################
 

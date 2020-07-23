@@ -48,10 +48,12 @@ else:
     else:
         from orion.solvers import fluidSolverNU_d3 as fs
 
+
+####################################################################################################
+
+
 # Main segment of code.
 def main():
-    global U, V, W, P
-
     maxProcs = mp.cpu_count()
     if gv.nProcs > maxProcs:
         print("\nERROR: " + str(gv.nProcs) + " exceeds the available number of processors (" + str(maxProcs) + ")\n")
@@ -66,10 +68,36 @@ def main():
 
     fs.initFields()
 
+    tStart = time.process_time()
+
+    if gv.testPoisson:
+        runMGTest()
+    else:
+        timeIntegrate()
+
+    tEnd = time.process_time()
+    tElap = tEnd - tStart
+
+    print("Time elapsed = ", tElap)
+    print("Simulation completed")
+
+
+####################################################################################################
+
+
+def runMGTest():
+    mgRHS = np.ones((fs.grid.L + 1, fs.grid.N + 1))
+    mgLHS = fs.ps.multigrid(mgRHS)
+
+    fs.ps.plotSoln(mgLHS)
+
+
+####################################################################################################
+
+
+def timeIntegrate():
     ndTime = 0.0
     fwTime = 0.0
-
-    tStart = time.process_time()
 
     while True:
         if abs(fwTime - ndTime) < 0.5*gv.dt:
@@ -91,12 +119,6 @@ def main():
 
         if ndTime > gv.tMax:
             break
-
-    tEnd = time.process_time()
-    tElap = tEnd - tStart
-
-    print("Time elapsed = ", tElap)
-    print("Simulation completed")
 
 
 ####################################################################################################

@@ -73,6 +73,9 @@ def initFields():
 
     ps.initVariables()
 
+    if gv.testPoisson:
+        ps.initDirichlet()
+
 
 def euler():
     global N, L
