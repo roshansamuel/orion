@@ -86,7 +86,11 @@ def main():
 
 
 def runMGTest():
-    mgRHS = np.ones((fs.grid.L + 1, fs.grid.N + 1))
+    if gv.planar:
+        mgRHS = np.ones((fs.grid.L + 1, fs.grid.N + 1))
+    else:
+        mgRHS = np.ones((fs.grid.L + 1, fs.grid.M + 1, fs.grid.N + 1))
+
     mgLHS = fs.ps.multigrid(mgRHS)
 
     fs.ps.plotSoln(mgLHS)

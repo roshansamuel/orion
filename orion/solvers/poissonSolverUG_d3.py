@@ -32,168 +32,533 @@
 ####################################################################################################
 
 # Import all necessary modules
-from orion import boundaryConditions as bc
 from orion import calculateFD as fd
 from orion import meshData as grid
 from orion import globalVars as gv
 import numpy as np
 
-# Get limits from grid object
-L, M, N = grid.L, grid.M, grid.N
+## For testing MG solver only
+if gv.testPoisson:
+    from mayavi import mlab
+
+############################### GLOBAL VARIABLES ################################
+
+# Get array of grid sizes are tuples corresponding to each level of V-Cycle
+N = [(grid.sLst[x[0]] - 1, grid.sLst[x[1]] - 1, grid.sLst[x[2]] - 1) for x in [gv.sInd - y for y in range(gv.VDepth + 1)]]
+
+# Define array of grid spacings along X
+hx = [1.0/(x[0]-1) for x in N]
+
+# Define array of grid spacings along Y
+hy = [1.0/(x[1]-1) for x in N]
+
+# Define array of grid spacings along Z
+hz = [1.0/(x[2]-1) for x in N]
+
+# Square of hx, used in finite difference formulae
+hx2 = [x*x for x in hx]
+
+# Square of hy, used in finite difference formulae
+hy2 = [x*x for x in hy]
+
+# Square of hz, used in finite difference formulae
+hz2 = [x*x for x in hz]
+
+# Cross product of hy and hz, used in finite difference formulae
+hyhz = [hy2[i]*hz2[i] for i in range(gv.VDepth + 1)]
+
+# Cross product of hx and hz, used in finite difference formulae
+hzhx = [hx2[i]*hz2[i] for i in range(gv.VDepth + 1)]
+
+# Cross product of hx and hy, used in finite difference formulae
+hxhy = [hx2[i]*hy2[i] for i in range(gv.VDepth + 1)]
+
+# Cross product of hx, hy and hz used in finite difference formulae
+hxhyhz = [hx2[i]*hy2[i]*hz2[i] for i in range(gv.VDepth + 1)]
+
+# Maximum number of iterations while solving at coarsest level
+maxCount = 10*N[-1][0]*N[-1][1]*N[-1][2]
+
+# Integer specifying the level of V-cycle at any point while solving
+vLev = 0
+
+# Flag to determine if non-zero homogenous BC has to be applied or not
+zeroBC = False
+
+############################## MULTI-GRID SOLVER ###############################
 
 def multigrid(H):
-    global N, M, L
+    global N
+    global pData, rData
 
-    Pp = np.zeros([L+1, M+1, N+1])
-    chMat = np.ones([L+1, M+1, N+1])
+    n = N[0]
+    rData[0] = H[1:-1, 1:-1, 1:-1]
+    chMat = np.zeros(n)
+
     for i in range(gv.vcCnt):
-        Pp = v_cycle(Pp, H)
+        v_cycle()
 
-        chMat = laplace(Pp)
-        print("Residual after V-Cycle ", i, " is ", np.amax(np.abs(H[1:L, 1:M, 1:N] - chMat[1:L, 1:M, 1:N])))
+        chMat = laplace(pData[0])
+        resVal = np.amax(np.abs(H[1:-1, 1:-1, 1:-1] - chMat))
 
-    return Pp
+        print("Residual after V-Cycle {0:2d} is {1:.4e}".format(i+1, resVal))
+
+    return pData[0]
 
 
-#Multigrid solution without the use of recursion
-def v_cycle(P, H):
+# Multigrid V-cycle without the use of recursion
+def v_cycle():
+    global vLev, zeroBC
+
+    vLev = 0
+    zeroBC = False
+
     # Pre-smoothing
-    P = smooth(P, H, grid.hx, grid.hy, grid.hz, gv.preSm, 0)
+    smooth(gv.preSm)
 
-    H_rsdl = H - laplace(P)
-
-    # Restriction operations
+    zeroBC = True
     for i in range(gv.VDepth):
-        gv.sInd -= 1
-        H_rsdl = restrict(H_rsdl)
+        # Compute residual
+        calcResidual()
 
-    # Solving the system after restriction
-    P_corr = solve(H_rsdl, (2.0**gv.VDepth)*grid.hx, (2.0**gv.VDepth)*grid.hy, (2.0**gv.VDepth)*grid.hz)
+        # Copy smoothed pressure for later use
+        sData[vLev] = np.copy(pData[vLev])
+
+        # Restrict to coarser level
+        restrict()
+
+        # Reinitialize pressure at coarser level to 0 - this is critical!
+        pData[vLev].fill(0.0)
+
+        # If the coarsest level is reached, solve. Otherwise, keep smoothing!
+        if vLev == gv.VDepth:
+            solve()
+        else:
+            smooth(gv.preSm)
 
     # Prolongation operations
     for i in range(gv.VDepth):
-        gv.sInd += 1
-        P_corr = prolong(P_corr)
-        H_rsdl = prolong(H_rsdl)
-        P_corr = smooth(P_corr, H_rsdl, grid.hx, grid.hy, grid.hz, gv.proSm, gv.VDepth-i-1)
+        # Prolong pressure to next finer level
+        prolong()
 
-    P += P_corr
+        # Add previously stored smoothed data
+        pData[vLev] += sData[vLev]
 
-    # Post-smoothing
-    P = smooth(P, H, grid.hx, grid.hy, grid.hz, gv.pstSm, 0)
+        # Apply homogenous BC so long as we are not at finest mesh (at which vLev = 0)
+        if vLev:
+            zeroBC = True
+        else:
+            zeroBC = False
 
-    return P
+        # Post-smoothing
+        smooth(gv.pstSm)
 
 
 #Uses jacobi iteration to smooth the solution passed to it.
-def smooth(function, rho, hx, hy, hz, iteration_times, vLevel):
-    smoothed = np.copy(function)
+def smooth(sCount):
+    global N
+    global vLev
+    global rData, pData
+    global hyhz, hzhx, hxhy, hxhyhz
 
-    # 1 subtracted from shape to account for ghost points
-    [L, M, N] = np.array(np.shape(function)) - 1
+    n = N[vLev]
+    for iCnt in range(sCount):
+        imposeBC(pData[vLev])
 
-    for i in range(iteration_times):
-        toSmooth = bc.imposePBCs(smoothed)
+        # Gauss-Seidel smoothing
+        for i in range(1, n[0]+1):
+            for j in range(1, n[1]+1):
+                for k in range(1, n[2]+1):
+                    pData[vLev][i, j, k] = (hyhz[vLev]*(pData[vLev][i+1, j, k] + pData[vLev][i-1, j, k]) +
+                                            hzhx[vLev]*(pData[vLev][i, j+1, k] + pData[vLev][i, j-1, k]) +
+                                            hxhy[vLev]*(pData[vLev][i, j, k+1] + pData[vLev][i, j, k-1]) -
+                                          hxhyhz[vLev]*rData[vLev][i-1, j-1, k-1]) / (2.0*(hyhz[vLev] + hzhx[vLev] + hxhy[vLev]))
 
+        '''
         smoothed[1:L, 1:M, 1:N] = (
                         (hy*hy)*(hz*hz)*(toSmooth[2:L+1, 1:M, 1:N] + toSmooth[0:L-1, 1:M, 1:N]) +
                         (hx*hx)*(hz*hz)*(toSmooth[1:L, 2:M+1, 1:N] + toSmooth[1:L, 0:M-1, 1:N]) +
                         (hx*hx)*(hy*hy)*(toSmooth[1:L, 1:M, 2:N+1] + toSmooth[1:L, 1:M, 0:N-1]) -
                         (hx*hx)*(hy*hy)*(hz*hz)*rho[1:L, 1:M, 1:N])/ \
                   (2.0*((hy*hy)*(hz*hz) + (hx*hx)*(hz*hz) + (hx*hx)*(hy*hy)))
+        '''
 
-    return smoothed
-
-
-#Reduces the size of the array to a lower level, 2^(n-1)+1.
-def restrict(function):
-    [rx, ry, rz] = [grid.sLst[gv.sInd[0]], grid.sLst[gv.sInd[1]], grid.sLst[gv.sInd[2]]]
-    restricted = np.zeros([rx + 1, ry + 1, rz + 1])
-
-    for i in range(1, rx):
-        for j in range(1, ry):
-            for k in range(1, rz):
-                restricted[i, j, k] = function[2*i - 1, 2*j - 1, 2*k - 1]
-
-    return restricted
+    imposeBC(pData[vLev])
 
 
-#Increases the size of the array to a higher level, 2^(n+1)+1.
-def prolong(function):
-    [rx, ry, rz] = [grid.sLst[gv.sInd[0]], grid.sLst[gv.sInd[1]], grid.sLst[gv.sInd[2]]]
-    prolonged = np.zeros([rx + 1, ry + 1, rz + 1])
+# Compute the residual and store it into iTemp array
+def calcResidual():
+    global vLev
+    global iTemp, rData, pData
 
-    [lx, ly, lz] = np.shape(function)
-    for i in range(1, lx-1):
-        for j in range(1, ly-1):
-            for k in range(1, lz-1):
-                prolonged[i*2 - 1, j*2 - 1, k*2 - 1] = function[i, j, k]
-    
-    for i in range(1, rx, 2):
-        for j in range(1, ry, 2):
-            for k in range(2, rz, 2):
-                prolonged[i, j, k] = (prolonged[i, j, k-1] + prolonged[i, j, k+1])/2
-
-    for i in range(1, rx, 2):
-        for j in range(2, ry, 2):
-            for k in range(1, rz):
-                prolonged[i, j, k] = (prolonged[i, j-1, k] + prolonged[i, j+1, k])/2
-
-    for i in range(2, rx, 2):
-        for j in range(1, ry):
-            for k in range(1, rz):
-                prolonged[i, j, k] = (prolonged[i-1, j, k] + prolonged[i+1, j, k])/2
-
-    return prolonged
+    iTemp[vLev].fill(0.0)
+    iTemp[vLev][1:-1, 1:-1, 1:-1] = rData[vLev] - laplace(pData[vLev])
 
 
-#This function uses the Jacobi iterative solver, using the grid spacing
-def solve(rho, hx, hy, hz):
-    # 1 subtracted from shape to account for ghost points
-    [L, M, N] = np.array(np.shape(rho)) - 1
-    prev_sol = np.zeros_like(rho)
-    next_sol = np.zeros_like(rho)
+# Reduces the size of the array to a lower level, 2^(n - 1) + 1
+def restrict():
+    global N
+    global vLev
+    global iTemp, rData
+
+    pLev = vLev
+    vLev += 1
+
+    n = N[vLev]
+    for i in range(1, n[0] + 1):
+        i2 = i*2
+        for j in range(1, n[1] + 1):
+            j2 = j*2
+            for k in range(1, n[2] + 1):
+                k2 = k*2
+                facePoints = (iTemp[pLev][i2, j2 - 1, k2 - 1] + iTemp[pLev][i2 - 2, j2 - 1, k2 - 1] +
+                              iTemp[pLev][i2 - 1, j2, k2 - 1] + iTemp[pLev][i2 - 1, j2 - 2, k2 - 1] +
+                              iTemp[pLev][i2 - 1, j2 - 1, k2] + iTemp[pLev][i2 - 1, j2 - 1, k2 - 2])*0.0625
+
+                edgePoints = (iTemp[pLev][i2 - 1, j2, k2] + iTemp[pLev][i2 - 1, j2 - 2, k2 - 2] +
+                              iTemp[pLev][i2 - 1, j2 - 2, k2] + iTemp[pLev][i2 - 1, j2, k2 - 2] +
+                              iTemp[pLev][i2, j2 - 1, k2] + iTemp[pLev][i2 - 2, j2 - 1, k2 - 2] +
+                              iTemp[pLev][i2, j2 - 1, k2 - 2] + iTemp[pLev][i2 - 2, j2 - 1, k2] +
+                              iTemp[pLev][i2, j2, k2 - 1] + iTemp[pLev][i2 - 2, j2 - 2, k2 - 1] +
+                              iTemp[pLev][i2, j2 - 2, k2 - 1] + iTemp[pLev][i2 - 2, j2, k2 - 1])*0.03125
+
+                vertPoints = (iTemp[pLev][i2, j2, k2] + iTemp[pLev][i2 - 2, j2 - 2, k2 - 2] +
+                              iTemp[pLev][i2, j2, k2 - 2] + iTemp[pLev][i2 - 2, j2 - 2, k2] +
+                              iTemp[pLev][i2, j2 - 2, k2] + iTemp[pLev][i2 - 2, j2, k2 - 2] +
+                              iTemp[pLev][i2 - 2, j2, k2] + iTemp[pLev][i2, j2 - 2, k2 - 2])*0.015625
+
+                rData[vLev][i-1, j-1, k-1] = facePoints + edgePoints + vertPoints + iTemp[pLev][i2 - 1, j2 - 1, k2 - 1]*0.125
+
+
+# Solves at coarsest level using an iterative solver
+def solve():
+    global N, vLev
+    global maxCount
+    global pData, rData
+    global hyhz, hzhx, hxhy, hxhyhz
+
+    n = N[vLev]
+    solLap = np.zeros(n)
+
     jCnt = 0
-
     while True:
+        imposeBC(pData[vLev])
+
+        # Gauss-Seidel iterative solver
+        for i in range(1, n[0]+1):
+            for j in range(1, n[1]+1):
+                for k in range(1, n[2]+1):
+                    pData[vLev][i, j, k] = (hyhz[vLev]*(pData[vLev][i+1, j, k] + pData[vLev][i-1, j, k]) +
+                                            hzhx[vLev]*(pData[vLev][i, j+1, k] + pData[vLev][i, j-1, k]) +
+                                            hxhy[vLev]*(pData[vLev][i, j, k+1] + pData[vLev][i, j, k-1]) -
+                                          hxhyhz[vLev]*rData[vLev][i-1, j-1, k-1]) / (2.0*(hyhz[vLev] + hzhx[vLev] + hxhy[vLev]))
+
+                '''
         next_sol[1:L, 1:M, 1:N] = (
             (hy*hy)*(hz*hz)*(prev_sol[2:L+1, 1:M, 1:N] + prev_sol[0:L-1, 1:M, 1:N]) +
             (hx*hx)*(hz*hz)*(prev_sol[1:L, 2:M+1, 1:N] + prev_sol[1:L, 0:M-1, 1:N]) +
             (hx*hx)*(hy*hy)*(prev_sol[1:L, 1:M, 2:N+1] + prev_sol[1:L, 1:M, 0:N-1]) -
             (hx*hx)*(hy*hy)*(hz*hz)*rho[1:L, 1:M, 1:N])/ \
       (2.0*((hy*hy)*(hz*hz) + (hx*hx)*(hz*hz) + (hx*hx)*(hy*hy)))
+                '''
 
-        solLap = np.zeros_like(next_sol)
-        solLap[1:L, 1:M, 1:N] = (fd.DDXi(next_sol, L, M, N) + fd.DDEt(next_sol, L, M, N) + fd.DDZt(next_sol, L, M, N))/((2**gv.VDepth)**2)
-
-        error_temp = np.abs(rho[1:L, 1:M, 1:N] - solLap[1:L, 1:M, 1:N])
-        maxErr = np.amax(error_temp)
+        maxErr = np.amax(np.abs(rData[vLev] - laplace(pData[vLev])))
         if maxErr < gv.tolerance:
             break
 
         jCnt += 1
-        if jCnt > 10*N*M*L:
+        if jCnt > maxCount:
             print("ERROR: Jacobi not converging. Aborting")
-            print("Maximum error: ", maxErr)
             quit()
 
-        prev_sol = np.copy(next_sol)
-
-    return prev_sol
+    imposeBC(pData[vLev])
 
 
+# Increases the size of the array to a higher level, 2^(n + 1) + 1
+def prolong():
+    global N
+    global vLev
+    global pData
+
+    pLev = vLev
+    vLev -= 1
+
+    n = N[vLev]
+    for i in range(1, n[0] + 1):
+        i2 = int(i/2) + 1
+        if i % 2:
+            for j in range(1, n[1] + 1):
+                j2 = int(j/2) + 1
+                if j % 2:
+                    for k in range(1, n[2] + 1):
+                        k2 = int(k/2) + 1
+                        if k % 2:
+                            #pData[vLev][i, k] = pData[pLev][i2, k2]
+                            pData[vLev][i, j, k] = pData[pLev][i2, j2, k2]
+                        else:
+                            #pData[vLev][i, k] = (pData[pLev][i2, k2] + pData[pLev][i2, k2 - 1])*0.5
+                            pData[vLev][i, j, k] = (pData[pLev][i2, j2, k2] + pData[pLev][i2, j2, k2 - 1])/2.0
+                else:
+                    for k in range(1, n[2] + 1):
+                        k2 = int(k/2) + 1
+                        if k % 2:
+                            #pData[vLev][i, k] = pData[pLev][i2, k2]
+                            pData[vLev][i, j, k] = (pData[pLev][i2, j2, k2] + pData[pLev][i2, j2 - 1, k2])/2.0
+                        else:
+                            #pData[vLev][i, k] = (pData[pLev][i2, k2] + pData[pLev][i2, k2 - 1])*0.5
+                            pData[vLev][i, j, k] = (pData[pLev][i2, j2, k2] + pData[pLev][i2, j2 - 1, k2 - 1] +
+                                                    pData[pLev][i2, j2 - 1, k2] + pData[pLev][i2, j2, k2 - 1])/4.0
+        else:
+            for j in range(1, n[1] + 1):
+                j2 = int(j/2) + 1
+                if j % 2:
+                    for k in range(1, n[2] + 1):
+                        k2 = int(k/2) + 1
+                        if k % 2:
+                            #pData[vLev][i, k] = (pData[pLev][i2, k2] + pData[pLev][i2 - 1, k2])*0.5
+                            pData[vLev][i, j, k] = (pData[pLev][i2, j2, k2] + pData[pLev][i2 - 1, j2, k2])/2.0
+                        else:
+                            #pData[vLev][i, k] = (pData[pLev][i2, k2] + pData[pLev][i2, k2 - 1] + pData[pLev][i2 - 1, k2] + pData[pLev][i2 - 1, k2 - 1])*0.25
+                            pData[vLev][i, j, k] = (pData[pLev][i2, j2, k2] + pData[pLev][i2 - 1, j2, k2 - 1] +
+                                                    pData[pLev][i2 - 1, j2, k2] + pData[pLev][i2, j2, k2 - 1])/4.0
+                else:
+                    for k in range(1, n[2] + 1):
+                        k2 = int(k/2) + 1
+                        if k % 2:
+                            #pData[vLev][i, k] = (pData[pLev][i2, k2] + pData[pLev][i2 - 1, k2])*0.5
+                            pData[vLev][i, j, k] = (pData[pLev][i2, j2, k2] + pData[pLev][i2 - 1, j2 - 1, k2] +
+                                                    pData[pLev][i2 - 1, j2, k2] + pData[pLev][i2, j2 - 1, k2])/4.0
+                        else:
+                            #pData[vLev][i, k] = (pData[pLev][i2, k2] + pData[pLev][i2, k2 - 1] + pData[pLev][i2 - 1, k2] + pData[pLev][i2 - 1, k2 - 1])*0.25
+                            pData[vLev][i, j, k] = (pData[pLev][i2, j2, k2] + pData[pLev][i2 - 1, j2 - 1, k2 - 1] +
+                                                    pData[pLev][i2 - 1, j2, k2] + pData[pLev][i2, j2 - 1, k2 - 1] + 
+                                                    pData[pLev][i2, j2 - 1, k2] + pData[pLev][i2 - 1, j2, k2 - 1] +
+                                                    pData[pLev][i2, j2, k2 - 1] + pData[pLev][i2 - 1, j2 - 1, k2])/8.0
+
+
+    '''
+    for (int i = 0; i <= xEnd(vLevel); ++i) {
+        i2 = i/2;
+        if (isOdd(i)) {
+            for (int j = 0; j <= yEnd(vLevel); j++) {
+                j2 = j/2;
+                if (isOdd(j)) {
+                    for (int k = 0; k <= zEnd(vLevel); ++k) {
+                        k2 = k/2;
+                        if (isOdd(k)) {     // i and j are even, but k is odd
+                            #pressureData(vLevel)(i, j, k) = pressureData(pLevel)(i2, j2, k2);
+                        } else {            // i j and k are even
+                            #pressureData(vLevel)(i, j, k) = (pressureData(pLevel)(i2, j2, k2) + pressureData(pLevel)(i2, j2, k2 + 1))/2.0;
+                        }
+                    }
+                } else {
+                    for (int k = 0; k <= zEnd(vLevel); ++k) {
+                        k2 = k/2;
+                        if (isOdd(k)) {     // i is even, but j and k are odd
+                            #pressureData(vLevel)(i, j, k) = (pressureData(pLevel)(i2, j2, k2) + pressureData(pLevel)(i2, j2 + 1, k2))/2.0;
+                        } else {            // i and k are even, but j is odd
+                            #pressureData(vLevel)(i, j, k) = (pressureData(pLevel)(i2, j2, k2) + pressureData(pLevel)(i2, j2, k2 + 1) +
+                            #                                 pressureData(pLevel)(i2, j2 + 1, k2) + pressureData(pLevel)(i2, j2 + 1, k2 + 1))/4.0;
+                        }
+                    }
+                }
+            }
+        } else {
+            for (int j = 0; j <= yEnd(vLevel); ++j) {
+                j2 = j/2;
+                if (isOdd(j)) {
+                    for (int k = 0; k <= zEnd(vLevel); ++k) {
+                        k2 = k/2;
+                        if (isOdd(k)) {     // i and k are odd, but j is even
+                            #pressureData(vLevel)(i, j, k) = (pressureData(pLevel)(i2, j2, k2) + pressureData(pLevel)(i2 + 1, j2, k2))/2.0;
+                        } else {            // i is odd, but j and k are even
+                            #pressureData(vLevel)(i, j, k) = (pressureData(pLevel)(i2, j2, k2) + pressureData(pLevel)(i2, j2, k2 + 1) +
+                            #                                 pressureData(pLevel)(i2 + 1, j2, k2) + pressureData(pLevel)(i2 + 1, j2, k2 + 1))/4.0;
+                        }
+                    }
+                } else {
+                    for (int k = 0; k <= zEnd(vLevel); ++k) {
+                        k2 = k/2;
+                        if (isOdd(k)) {     // i j and k are odd
+                            #pressureData(vLevel)(i, j, k) = (pressureData(pLevel)(i2, j2, k2) + pressureData(pLevel)(i2, j2 + 1, k2) +
+                            #                                 pressureData(pLevel)(i2 + 1, j2, k2) + pressureData(pLevel)(i2 + 1, j2 + 1, k2))/4.0;
+                        } else {            // i and j are odd, but k is even
+                            #pressureData(vLevel)(i, j, k) = (pressureData(pLevel)(i2, j2, k2) +
+                            #                                 pressureData(pLevel)(i2 + 1, j2, k2) + pressureData(pLevel)(i2, j2 + 1, k2) + pressureData(pLevel)(i2, j2, k2 + 1) +
+                            #                                 pressureData(pLevel)(i2 + 1, j2 + 1, k2) + pressureData(pLevel)(i2 + 1, j2, k2 + 1) + pressureData(pLevel)(i2, j2 + 1, k2 + 1) +
+                            #                                 pressureData(pLevel)(i2 + 1, j2 + 1, k2 + 1))/8.0;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    '''
+
+
+# Computes the 3D laplacian of function
 def laplace(function):
-    '''
-Function to calculate the Laplacian for a given field of values.
-INPUT:  function: 3D matrix of double precision values
-OUTPUT: gradient: 3D matrix of double precision values with same size as input matrix
-    '''
+    global N, vLev
+    global hx2, hy2, hz2
 
-    # 1 subtracted from shape to account for ghost points
-    [L, M, N] = np.array(np.shape(function)) - 1
-    gradient = np.zeros_like(function)
+    n = N[vLev]
 
-    gradient[1:L, 1:M, 1:N] = fd.DDXi(function, L, M, N) + fd.DDEt(function, L, M, N) + fd.DDZt(function, L, M, N)
+    gradient = np.zeros(n)
+    gradient = ((function[:n[0], 1:-1, 1:-1] - 2.0*function[1:n[0]+1, 1:-1, 1:-1] + function[2:, 1:-1, 1:-1])/hx2[vLev] + 
+                (function[1:-1, :n[1], 1:-1] - 2.0*function[1:-1, 1:n[1]+1, 1:-1] + function[1:-1, 2:, 1:-1])/hy2[vLev] +
+                (function[1:-1, 1:-1, :n[2]] - 2.0*function[1:-1, 1:-1, 1:n[2]+1] + function[1:-1, 1:-1, 2:])/hz2[vLev])
 
     return gradient
+
+
+# Initialize the arrays used in MG algorithm
+def initVariables():
+    global N
+    global pData, rData, sData, iTemp
+
+    nList = np.array(N)
+
+    rData = [np.zeros(tuple(x)) for x in nList]
+    pData = [np.zeros(tuple(x)) for x in nList + 2]
+
+    sData = [np.zeros_like(x) for x in pData]
+    iTemp = [np.zeros_like(x) for x in pData]
+
+
+############################## BOUNDARY CONDITION ###############################
+
+
+# The name of this function is self-explanatory. It imposes BC on P
+def imposeBC(P):
+    global zeroBC
+    global pWallX, pWallY, pWallZ
+
+    if gv.testPoisson:
+        # Dirichlet BC
+        if zeroBC:
+            # Homogenous BC
+            # Left Wall
+            P[0, :, :] = -P[2, :, :]
+
+            # Right Wall
+            P[-1, :, :] = -P[-3, :, :]
+
+            # Front wall
+            P[:, 0, :] = -P[:, 2, :]
+
+            # Back wall
+            P[:, -1, :] = -P[:, -3, :]
+
+            # Bottom wall
+            P[:, :, 0] = -P[:, :, 2]
+
+            # Top wall
+            P[:, :, -1] = -P[:, :, -3]
+
+        else:
+            # Non-homogenous BC
+            # Left Wall
+            P[0, :, :] = 2.0*pWallX - P[2, :, :]
+
+            # Right Wall
+            P[-1, :, :] = 2.0*pWallX - P[-3, :, :]
+
+            # Front wall
+            P[:, 0, :] = 2.0*pWallY - P[:, 2, :]
+
+            # Back wall
+            P[:, -1, :] = 2.0*pWallY - P[:, -3, :]
+
+            # Bottom wall
+            P[:, :, 0] = 2.0*pWallZ - P[:, :, 2]
+
+            # Top wall
+            P[:, :, -1] = 2.0*pWallZ - P[:, :, -3]
+
+    else:
+        # Periodic BCs along X and Y directions
+        if gv.xyPeriodic:
+            # Left wall
+            P[0, :, :] = P[-3, :, :]
+
+            # Right wall
+            P[-1, :, :] = P[2, :, :]
+
+            # Front wall
+            P[:, 0, :] = P[:, -3, :]
+
+            # Back wall
+            P[:, -1, :] = P[:, 2, :]
+
+        else:
+            # Neumann boundary condition on pressure
+            # Left wall
+            P[0, :, :] = P[2, :, :]
+
+            # Right wall
+            P[-1, :, :] = P[-3, :, :]
+
+            # Front wall
+            P[:, 0, :] = P[:, 2, :]
+
+            # Back wall
+            P[:, -1, :] = P[:, -3, :]
+
+        # Bottom wall
+        P[:, :, 0] = P[:, :, 2]
+
+        # Top wall
+        P[:, :, -1] = P[:, :, -3]
+
+
+############################### TEST CASE DETAIL ################################
+
+
+# Calculate the analytical solution and its corresponding Dirichlet BC values
+def initDirichlet():
+    global N
+    global hx, hy, hz
+    global pAnlt, pData
+    global pWallX, pWallY, pWallZ
+
+    n = N[0]
+
+    # Compute analytical solution, (r^2)/6
+    pAnlt = np.zeros_like(pData[0])
+
+    halfIndX = int(n[0]/2) + 1
+    halfIndY = int(n[1]/2) + 1
+    halfIndZ = int(n[2]/2) + 1
+
+    for i in range(n[0] + 2):
+        xDist = hx[0]*(i - halfIndX)
+        for j in range(n[1] + 2):
+            yDist = hy[0]*(j - halfIndY)
+            for k in range(n[2] + 2):
+                zDist = hz[0]*(k - halfIndZ)
+                pAnlt[i, j, k] = (xDist*xDist + yDist*yDist + zDist*zDist)/6.0
+
+    # Value of P at walls according to analytical solution
+    pWallX = pAnlt[1, :, :]
+    pWallY = pAnlt[:, 1, :]
+    pWallZ = pAnlt[:, :, 1]
+
+
+############################### PLOTTING ROUTINE ################################
+
+
+def plotSoln(pSoln):
+    global N
+    global pAnlt
+
+    midZPt = int(N[0][2]/2) + 1
+
+    mlab.imshow(pSoln[1:-1, 1:-1, midZPt])
+    mlab.colorbar(orientation='vertical')
+    mlab.show()
+
+    mlab.imshow(pAnlt[1:-1, 1:-1, midZPt])
+    mlab.colorbar(orientation='vertical')
+    mlab.show()
 

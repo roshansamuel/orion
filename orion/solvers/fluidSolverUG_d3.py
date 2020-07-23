@@ -76,6 +76,11 @@ def initFields():
         #U = 0.1*np.random.rand(grid.L, grid.M+1, grid.N+1)
         U[:, :, :] = 1.0
 
+    ps.initVariables()
+
+    if gv.testPoisson:
+        ps.initDirichlet()
+
 
 def euler():
     global N, M, L

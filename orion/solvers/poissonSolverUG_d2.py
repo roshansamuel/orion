@@ -41,11 +41,7 @@ import numpy as np
 if gv.testPoisson:
     from mayavi import mlab
 
-# For debug only
-np.set_printoptions(precision=3, linewidth=160, suppress=False)
-
 ############################### GLOBAL VARIABLES ################################
-
 
 # Get array of grid sizes are tuples corresponding to each level of V-Cycle
 N = [(grid.sLst[x[0]] - 1, grid.sLst[x[2]] - 1) for x in [gv.sInd - y for y in range(gv.VDepth + 1)]]
@@ -53,7 +49,7 @@ N = [(grid.sLst[x[0]] - 1, grid.sLst[x[2]] - 1) for x in [gv.sInd - y for y in r
 # Define array of grid spacings along X
 hx = [1.0/(x[0]-1) for x in N]
 
-# Define array of grid spacings along X
+# Define array of grid spacings along Z
 hz = [1.0/(x[1]-1) for x in N]
 
 # Square of hx, used in finite difference formulae
@@ -74,9 +70,7 @@ vLev = 0
 # Flag to determine if non-zero homogenous BC has to be applied or not
 zeroBC = False
 
-
 ############################## MULTI-GRID SOLVER ###############################
-
 
 def multigrid(H):
     global N
@@ -148,9 +142,9 @@ def v_cycle():
 # Smoothens the solution sCount times using Gauss-Seidel smoother
 def smooth(sCount):
     global N
-    global hx2
     global vLev
     global rData, pData
+    global hx2, hz2, hzhx
 
     n = N[vLev]
     for iCnt in range(sCount):
@@ -172,14 +166,7 @@ def calcResidual():
     global iTemp, rData, pData
 
     iTemp[vLev].fill(0.0)
-    #tempMat = laplace(pData[vLev])
     iTemp[vLev][1:-1, 1:-1] = rData[vLev] - laplace(pData[vLev])
-
-    #print(iTemp[vLev][-7:, -7:])
-    #print(tempMat.shape)
-    #print(tempMat[-6:, -6:])
-    #print(pData[vLev])
-    #exit()
 
 
 # Reduces the size of the array to a lower level, 2^(n - 1) + 1
@@ -203,10 +190,10 @@ def restrict():
 
 # Solves at coarsest level using an iterative solver
 def solve():
-    global vLev
-    global N, hx2
+    global N, vLev
     global maxCount
     global pData, rData
+    global hx2, hz2, hzhx
 
     n = N[vLev]
     solLap = np.zeros(n)
@@ -264,8 +251,8 @@ def prolong():
 
 # Computes the 2D laplacian of function
 def laplace(function):
-    global vLev
-    global N, hx2
+    global N, vLev
+    global hx2, hz2
 
     n = N[vLev]
 
@@ -358,7 +345,7 @@ def imposeBC(P):
 # Calculate the analytical solution and its corresponding Dirichlet BC values
 def initDirichlet():
     global N
-    global hx
+    global hx, hz
     global pAnlt, pData
     global pWallX, pWallZ
 
@@ -375,7 +362,7 @@ def initDirichlet():
             zDist = hz[0]*(j - halfIndZ)
             pAnlt[i, j] = (xDist*xDist + zDist*zDist)/4.0
 
-    # Value of P at wall according to analytical solution
+    # Value of P at walls according to analytical solution
     pWallX = pAnlt[1,:]
     pWallZ = pAnlt[:,1]
 

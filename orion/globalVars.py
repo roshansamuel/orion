@@ -38,7 +38,7 @@ import numpy as np
 
 # Set whether the simulation is going to be 2D or 3D
 # If 2D, set the below flag to True
-planar = True
+planar = False
 
 # Set below flag to True if the Poisson solver is being tested
 testPoisson = True
