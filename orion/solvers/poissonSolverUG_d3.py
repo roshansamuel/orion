@@ -89,6 +89,7 @@ zeroBC = False
 
 def multigrid(H):
     global N
+    global pAnlt
     global pData, rData
 
     n = N[0]
@@ -99,9 +100,13 @@ def multigrid(H):
         v_cycle()
 
         chMat = laplace(pData[0])
-        resVal = np.amax(np.abs(H[1:-1, 1:-1, 1:-1] - chMat))
 
+        resVal = np.amax(np.abs(H[1:-1, 1:-1, 1:-1] - chMat))
         print("Residual after V-Cycle {0:2d} is {1:.4e}".format(i+1, resVal))
+
+        if gv.testPoisson:
+            errVal = np.amax(np.abs(pAnlt[1:-1, 1:-1, 1:-1] - pData[0][1:-1, 1:-1, 1:-1]))
+            print("Error after V-Cycle {0:2d} is {1:.4e}\n".format(i+1, errVal))
 
     return pData[0]
 
@@ -154,7 +159,7 @@ def v_cycle():
         smooth(gv.pstSm)
 
 
-#Uses jacobi iteration to smooth the solution passed to it.
+# Smoothens the solution sCount times using Gauss-Seidel smoother
 def smooth(sCount):
     global N
     global vLev
@@ -173,15 +178,6 @@ def smooth(sCount):
                                             hzhx[vLev]*(pData[vLev][i, j+1, k] + pData[vLev][i, j-1, k]) +
                                             hxhy[vLev]*(pData[vLev][i, j, k+1] + pData[vLev][i, j, k-1]) -
                                           hxhyhz[vLev]*rData[vLev][i-1, j-1, k-1]) / (2.0*(hyhz[vLev] + hzhx[vLev] + hxhy[vLev]))
-
-        '''
-        smoothed[1:L, 1:M, 1:N] = (
-                        (hy*hy)*(hz*hz)*(toSmooth[2:L+1, 1:M, 1:N] + toSmooth[0:L-1, 1:M, 1:N]) +
-                        (hx*hx)*(hz*hz)*(toSmooth[1:L, 2:M+1, 1:N] + toSmooth[1:L, 0:M-1, 1:N]) +
-                        (hx*hx)*(hy*hy)*(toSmooth[1:L, 1:M, 2:N+1] + toSmooth[1:L, 1:M, 0:N-1]) -
-                        (hx*hx)*(hy*hy)*(hz*hz)*rho[1:L, 1:M, 1:N])/ \
-                  (2.0*((hy*hy)*(hz*hz) + (hx*hx)*(hz*hz) + (hx*hx)*(hy*hy)))
-        '''
 
     imposeBC(pData[vLev])
 
@@ -253,15 +249,6 @@ def solve():
                                             hxhy[vLev]*(pData[vLev][i, j, k+1] + pData[vLev][i, j, k-1]) -
                                           hxhyhz[vLev]*rData[vLev][i-1, j-1, k-1]) / (2.0*(hyhz[vLev] + hzhx[vLev] + hxhy[vLev]))
 
-                '''
-        next_sol[1:L, 1:M, 1:N] = (
-            (hy*hy)*(hz*hz)*(prev_sol[2:L+1, 1:M, 1:N] + prev_sol[0:L-1, 1:M, 1:N]) +
-            (hx*hx)*(hz*hz)*(prev_sol[1:L, 2:M+1, 1:N] + prev_sol[1:L, 0:M-1, 1:N]) +
-            (hx*hx)*(hy*hy)*(prev_sol[1:L, 1:M, 2:N+1] + prev_sol[1:L, 1:M, 0:N-1]) -
-            (hx*hx)*(hy*hy)*(hz*hz)*rho[1:L, 1:M, 1:N])/ \
-      (2.0*((hy*hy)*(hz*hz) + (hx*hx)*(hz*hz) + (hx*hx)*(hy*hy)))
-                '''
-
         maxErr = np.amax(np.abs(rData[vLev] - laplace(pData[vLev])))
         if maxErr < gv.tolerance:
             break
@@ -293,19 +280,15 @@ def prolong():
                     for k in range(1, n[2] + 1):
                         k2 = int(k/2) + 1
                         if k % 2:
-                            #pData[vLev][i, k] = pData[pLev][i2, k2]
                             pData[vLev][i, j, k] = pData[pLev][i2, j2, k2]
                         else:
-                            #pData[vLev][i, k] = (pData[pLev][i2, k2] + pData[pLev][i2, k2 - 1])*0.5
                             pData[vLev][i, j, k] = (pData[pLev][i2, j2, k2] + pData[pLev][i2, j2, k2 - 1])/2.0
                 else:
                     for k in range(1, n[2] + 1):
                         k2 = int(k/2) + 1
                         if k % 2:
-                            #pData[vLev][i, k] = pData[pLev][i2, k2]
                             pData[vLev][i, j, k] = (pData[pLev][i2, j2, k2] + pData[pLev][i2, j2 - 1, k2])/2.0
                         else:
-                            #pData[vLev][i, k] = (pData[pLev][i2, k2] + pData[pLev][i2, k2 - 1])*0.5
                             pData[vLev][i, j, k] = (pData[pLev][i2, j2, k2] + pData[pLev][i2, j2 - 1, k2 - 1] +
                                                     pData[pLev][i2, j2 - 1, k2] + pData[pLev][i2, j2, k2 - 1])/4.0
         else:
@@ -315,86 +298,21 @@ def prolong():
                     for k in range(1, n[2] + 1):
                         k2 = int(k/2) + 1
                         if k % 2:
-                            #pData[vLev][i, k] = (pData[pLev][i2, k2] + pData[pLev][i2 - 1, k2])*0.5
                             pData[vLev][i, j, k] = (pData[pLev][i2, j2, k2] + pData[pLev][i2 - 1, j2, k2])/2.0
                         else:
-                            #pData[vLev][i, k] = (pData[pLev][i2, k2] + pData[pLev][i2, k2 - 1] + pData[pLev][i2 - 1, k2] + pData[pLev][i2 - 1, k2 - 1])*0.25
                             pData[vLev][i, j, k] = (pData[pLev][i2, j2, k2] + pData[pLev][i2 - 1, j2, k2 - 1] +
                                                     pData[pLev][i2 - 1, j2, k2] + pData[pLev][i2, j2, k2 - 1])/4.0
                 else:
                     for k in range(1, n[2] + 1):
                         k2 = int(k/2) + 1
                         if k % 2:
-                            #pData[vLev][i, k] = (pData[pLev][i2, k2] + pData[pLev][i2 - 1, k2])*0.5
                             pData[vLev][i, j, k] = (pData[pLev][i2, j2, k2] + pData[pLev][i2 - 1, j2 - 1, k2] +
                                                     pData[pLev][i2 - 1, j2, k2] + pData[pLev][i2, j2 - 1, k2])/4.0
                         else:
-                            #pData[vLev][i, k] = (pData[pLev][i2, k2] + pData[pLev][i2, k2 - 1] + pData[pLev][i2 - 1, k2] + pData[pLev][i2 - 1, k2 - 1])*0.25
                             pData[vLev][i, j, k] = (pData[pLev][i2, j2, k2] + pData[pLev][i2 - 1, j2 - 1, k2 - 1] +
                                                     pData[pLev][i2 - 1, j2, k2] + pData[pLev][i2, j2 - 1, k2 - 1] + 
                                                     pData[pLev][i2, j2 - 1, k2] + pData[pLev][i2 - 1, j2, k2 - 1] +
                                                     pData[pLev][i2, j2, k2 - 1] + pData[pLev][i2 - 1, j2 - 1, k2])/8.0
-
-
-    '''
-    for (int i = 0; i <= xEnd(vLevel); ++i) {
-        i2 = i/2;
-        if (isOdd(i)) {
-            for (int j = 0; j <= yEnd(vLevel); j++) {
-                j2 = j/2;
-                if (isOdd(j)) {
-                    for (int k = 0; k <= zEnd(vLevel); ++k) {
-                        k2 = k/2;
-                        if (isOdd(k)) {     // i and j are even, but k is odd
-                            #pressureData(vLevel)(i, j, k) = pressureData(pLevel)(i2, j2, k2);
-                        } else {            // i j and k are even
-                            #pressureData(vLevel)(i, j, k) = (pressureData(pLevel)(i2, j2, k2) + pressureData(pLevel)(i2, j2, k2 + 1))/2.0;
-                        }
-                    }
-                } else {
-                    for (int k = 0; k <= zEnd(vLevel); ++k) {
-                        k2 = k/2;
-                        if (isOdd(k)) {     // i is even, but j and k are odd
-                            #pressureData(vLevel)(i, j, k) = (pressureData(pLevel)(i2, j2, k2) + pressureData(pLevel)(i2, j2 + 1, k2))/2.0;
-                        } else {            // i and k are even, but j is odd
-                            #pressureData(vLevel)(i, j, k) = (pressureData(pLevel)(i2, j2, k2) + pressureData(pLevel)(i2, j2, k2 + 1) +
-                            #                                 pressureData(pLevel)(i2, j2 + 1, k2) + pressureData(pLevel)(i2, j2 + 1, k2 + 1))/4.0;
-                        }
-                    }
-                }
-            }
-        } else {
-            for (int j = 0; j <= yEnd(vLevel); ++j) {
-                j2 = j/2;
-                if (isOdd(j)) {
-                    for (int k = 0; k <= zEnd(vLevel); ++k) {
-                        k2 = k/2;
-                        if (isOdd(k)) {     // i and k are odd, but j is even
-                            #pressureData(vLevel)(i, j, k) = (pressureData(pLevel)(i2, j2, k2) + pressureData(pLevel)(i2 + 1, j2, k2))/2.0;
-                        } else {            // i is odd, but j and k are even
-                            #pressureData(vLevel)(i, j, k) = (pressureData(pLevel)(i2, j2, k2) + pressureData(pLevel)(i2, j2, k2 + 1) +
-                            #                                 pressureData(pLevel)(i2 + 1, j2, k2) + pressureData(pLevel)(i2 + 1, j2, k2 + 1))/4.0;
-                        }
-                    }
-                } else {
-                    for (int k = 0; k <= zEnd(vLevel); ++k) {
-                        k2 = k/2;
-                        if (isOdd(k)) {     // i j and k are odd
-                            #pressureData(vLevel)(i, j, k) = (pressureData(pLevel)(i2, j2, k2) + pressureData(pLevel)(i2, j2 + 1, k2) +
-                            #                                 pressureData(pLevel)(i2 + 1, j2, k2) + pressureData(pLevel)(i2 + 1, j2 + 1, k2))/4.0;
-                        } else {            // i and j are odd, but k is even
-                            #pressureData(vLevel)(i, j, k) = (pressureData(pLevel)(i2, j2, k2) +
-                            #                                 pressureData(pLevel)(i2 + 1, j2, k2) + pressureData(pLevel)(i2, j2 + 1, k2) + pressureData(pLevel)(i2, j2, k2 + 1) +
-                            #                                 pressureData(pLevel)(i2 + 1, j2 + 1, k2) + pressureData(pLevel)(i2 + 1, j2, k2 + 1) + pressureData(pLevel)(i2, j2 + 1, k2 + 1) +
-                            #                                 pressureData(pLevel)(i2 + 1, j2 + 1, k2 + 1))/8.0;
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    '''
 
 
 # Computes the 3D laplacian of function

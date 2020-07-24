@@ -74,6 +74,7 @@ zeroBC = False
 
 def multigrid(H):
     global N
+    global pAnlt
     global pData, rData
 
     n = N[0]
@@ -84,9 +85,13 @@ def multigrid(H):
         v_cycle()
 
         chMat = laplace(pData[0])
-        resVal = np.amax(np.abs(H[1:-1, 1:-1] - chMat))
 
+        resVal = np.amax(np.abs(H[1:-1, 1:-1] - chMat))
         print("Residual after V-Cycle {0:2d} is {1:.4e}".format(i+1, resVal))
+
+        if gv.testPoisson:
+            errVal = np.amax(np.abs(pAnlt[1:-1, 1:-1] - pData[0][1:-1, 1:-1]))
+            print("Error after V-Cycle {0:2d} is {1:.4e}\n".format(i+1, errVal))
 
     return pData[0]
 
@@ -356,6 +361,7 @@ def initDirichlet():
 
     halfIndX = int(n[0]/2) + 1
     halfIndZ = int(n[1]/2) + 1
+
     for i in range(n[0] + 2):
         xDist = hx[0]*(i - halfIndX)
         for j in range(n[1] + 2):
@@ -363,8 +369,8 @@ def initDirichlet():
             pAnlt[i, j] = (xDist*xDist + zDist*zDist)/4.0
 
     # Value of P at walls according to analytical solution
-    pWallX = pAnlt[1,:]
-    pWallZ = pAnlt[:,1]
+    pWallX = pAnlt[1, :]
+    pWallZ = pAnlt[:, 1]
 
 
 ############################### PLOTTING ROUTINE ################################
