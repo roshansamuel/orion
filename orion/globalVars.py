@@ -49,7 +49,7 @@ nProcs = 8
 # Choose the grid sizes as indices from below list so that there are 2^n + 2 grid points
 # [2, 4, 6, 10, 18, 34, 66, 130, 258, 514, 1026, 2050]
 #  0  1  2  3   4   5   6    7    8    9    10    11
-sInd = np.array([5, 5, 5])
+sInd = np.array([6, 6, 6])
 
 # Domain lengths - along X, Y and Z directions respectively
 dLen = [1.0, 1.0, 1.0]
@@ -90,16 +90,16 @@ Re = 1000
 tolerance = 1.0e-6
 
 # Depth of each V-cycle in multigrid
-VDepth = 4
+VDepth = 5
 
 # Number of V-cycles to be computed
 vcCnt = 14
 
 # Number of iterations during pre-smoothing
-preSm = 2
+preSm = 3
 
 # Number of iterations during post-smoothing
-pstSm = 2
+pstSm = 3
 
 ######################################## END OF USER PARAMETERS ####################################
 
@@ -108,3 +108,39 @@ pstSm = 2
 iCnt = 0
 
 nu = 1.0/Re
+
+########################################### PRINT PARAMETERS #######################################
+
+def printParams():
+    if testPoisson:
+        print("Testing Poisson solver\n")
+    else:
+        if probType == 0:
+            print("Solving for lid-driven cavity\n")
+        elif probType == 1:
+            print("Solving for forced channel flow\n")
+
+        print("Format used to write output data is {}\n".format(fwMode))
+        print("Time-step is {}\n".format(dt))
+        print("Number of iterations after which output must be printed to standard I/O is {}\n".format(opInt))
+        print("File writing interval is {}\n".format(fwInt))
+        print("Final time is {}\n".format(tMax))
+        print("Reynolds number is {}\n".format(Re))
+
+    nList = [1, 3, 5, 9, 17, 33, 65, 129, 257, 513, 1025, 2049]
+    gList = [nList[x] for x in sInd]
+    if planar:
+        print("Running solver with 2D grid of size {} x {} over a domain of size {} x {}\n".format(gList[0], gList[2], dLen[0], dLen[1]))
+    else:
+        print("Running solver with 3D grid of size {} x {} x {} over a domain of size {} x {} x {}\n".format(*(tuple(gList + dLen))))
+
+    if uniformGrid:
+        print("Using uniform mesh in domain\n")
+    else:
+        print("Using non-uniform mesh with tangent-hyperbolic stretching factors {}, {} and {} along X, Y and Z respectively\n".format(beta))
+
+    print("Tolerance value in Jacobi iterations is {}\n".format(tolerance))
+    print("Depth of each V-cycle in multigrid is {}\n".format(VDepth))
+    print("Number of V-cycles to be computed is {}\n".format(vcCnt))
+    print("Number of iterations during pre-smoothing is {}\n".format(preSm))
+    print("Number of iterations during post-smoothing is {}\n".format(pstSm))

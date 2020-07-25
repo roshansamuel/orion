@@ -67,6 +67,7 @@ def main():
         fs.grid.calculateMetrics()
 
     fs.initFields()
+    gv.printParams()
 
     tStart = time.process_time()
 
@@ -93,7 +94,7 @@ def runMGTest():
 
     mgLHS = fs.ps.multigrid(mgRHS)
 
-    fs.ps.plotSoln(mgLHS)
+    #fs.ps.plotSoln(mgLHS)
 
 
 ####################################################################################################

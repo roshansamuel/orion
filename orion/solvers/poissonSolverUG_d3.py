@@ -76,6 +76,9 @@ hxhy = [hx2[i]*hy2[i] for i in range(gv.VDepth + 1)]
 # Cross product of hx, hy and hz used in finite difference formulae
 hxhyhz = [hx2[i]*hy2[i]*hz2[i] for i in range(gv.VDepth + 1)]
 
+# Factor in denominator of Gauss-Seidel iterations
+gsFactor = [1.0/(2.0*(hyhz[i] + hzhx[i] + hxhy[i])) for i in range(gv.VDepth + 1)]
+
 # Maximum number of iterations while solving at coarsest level
 maxCount = 10*N[-1][0]*N[-1][1]*N[-1][2]
 
@@ -163,6 +166,7 @@ def v_cycle():
 def smooth(sCount):
     global N
     global vLev
+    global gsFactor
     global rData, pData
     global hyhz, hzhx, hxhy, hxhyhz
 
@@ -177,7 +181,7 @@ def smooth(sCount):
                     pData[vLev][i, j, k] = (hyhz[vLev]*(pData[vLev][i+1, j, k] + pData[vLev][i-1, j, k]) +
                                             hzhx[vLev]*(pData[vLev][i, j+1, k] + pData[vLev][i, j-1, k]) +
                                             hxhy[vLev]*(pData[vLev][i, j, k+1] + pData[vLev][i, j, k-1]) -
-                                          hxhyhz[vLev]*rData[vLev][i-1, j-1, k-1]) / (2.0*(hyhz[vLev] + hzhx[vLev] + hxhy[vLev]))
+                                          hxhyhz[vLev]*rData[vLev][i-1, j-1, k-1]) * gsFactor[vLev]
 
     imposeBC(pData[vLev])
 
@@ -229,6 +233,7 @@ def restrict():
 # Solves at coarsest level using an iterative solver
 def solve():
     global N, vLev
+    global gsFactor
     global maxCount
     global pData, rData
     global hyhz, hzhx, hxhy, hxhyhz
@@ -247,7 +252,7 @@ def solve():
                     pData[vLev][i, j, k] = (hyhz[vLev]*(pData[vLev][i+1, j, k] + pData[vLev][i-1, j, k]) +
                                             hzhx[vLev]*(pData[vLev][i, j+1, k] + pData[vLev][i, j-1, k]) +
                                             hxhy[vLev]*(pData[vLev][i, j, k+1] + pData[vLev][i, j, k-1]) -
-                                          hxhyhz[vLev]*rData[vLev][i-1, j-1, k-1]) / (2.0*(hyhz[vLev] + hzhx[vLev] + hxhy[vLev]))
+                                          hxhyhz[vLev]*rData[vLev][i-1, j-1, k-1]) * gsFactor[vLev]
 
         maxErr = np.amax(np.abs(rData[vLev] - laplace(pData[vLev])))
         if maxErr < gv.tolerance:
@@ -337,11 +342,11 @@ def initVariables():
 
     nList = np.array(N)
 
-    rData = [np.zeros(tuple(x)) for x in nList]
-    pData = [np.zeros(tuple(x)) for x in nList + 2]
+    rData = np.array([np.zeros(tuple(x)) for x in nList])
+    pData = np.array([np.zeros(tuple(x)) for x in nList + 2])
 
-    sData = [np.zeros_like(x) for x in pData]
-    iTemp = [np.zeros_like(x) for x in pData]
+    sData = np.array([np.zeros_like(x) for x in pData])
+    iTemp = np.array([np.zeros_like(x) for x in pData])
 
 
 ############################## BOUNDARY CONDITION ###############################
