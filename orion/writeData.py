@@ -37,7 +37,7 @@ from orion.globalVars import fwMode
 import h5py as hp
 
 
-def writeSoln(U, V, W, P, time):
+def writeSoln3D(U, V, W, P, time):
     L, M ,N = tuple(map(lambda i: i - 1, P.shape))
 
     if fwMode == "ASCII":
@@ -74,7 +74,7 @@ def writeSoln(U, V, W, P, time):
         f.close()
 
 
-def writeSoln(U, W, P, time):
+def writeSoln2D(U, W, P, time):
     L, N = tuple(map(lambda i: i - 1, P.shape))
 
     if fwMode == "ASCII":

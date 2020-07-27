@@ -314,5 +314,5 @@ OUTPUT: The maximum value of divergence in double precision
 def writeSoln(solTime):
     global U, V, W, P
 
-    dw.writeSoln(U, V, W, P, solTime)
+    dw.writeSoln3D(U, V, W, P, solTime)
 

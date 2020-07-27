@@ -70,10 +70,9 @@ def initFields():
 
     if gv.probType == 0:
         # BC for moving top lid - U = 1.0 on lid
-        U[:, :, grid.N] = 1.0
+        U[:, :, -1] = 1.0
     elif gv.probType == 1:
-        #h = np.linspace(0.0, zLen, grid.N+1)
-        #U = 0.1*np.random.rand(grid.L, grid.M+1, grid.N+1)
+        # Initial condition for forced channel flow
         U[:, :, :] = 1.0
 
     ps.initVariables()
@@ -116,6 +115,7 @@ def euler():
     rhs[1:L, 1:M, 1:N] = ((Up[1:L, 1:M, 1:N] - Up[0:L-1, 1:M, 1:N])/grid.hx +
                           (Vp[1:L, 1:M, 1:N] - Vp[1:L, 0:M-1, 1:N])/grid.hy +
                           (Wp[1:L, 1:M, 1:N] - Wp[1:L, 1:M, 0:N-1])/grid.hz)/gv.dt
+
     Pp = ps.multigrid(rhs)
 
     # Add pressure correction.
@@ -301,5 +301,5 @@ OUTPUT: The maximum value of divergence in double precision
 def writeSoln(solTime):
     global U, V, W, P
 
-    dw.writeSoln(U, V, W, P, solTime)
+    dw.writeSoln3D(U, V, W, P, solTime)
 

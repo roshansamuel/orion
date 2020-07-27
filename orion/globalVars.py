@@ -41,7 +41,7 @@ import numpy as np
 planar = False
 
 # Set below flag to True if the Poisson solver is being tested
-testPoisson = True
+testPoisson = False
 
 # Set the number of processors for parallel computing (under development) with multiprocessing module
 nProcs = 8
@@ -49,7 +49,7 @@ nProcs = 8
 # Choose the grid sizes as indices from below list so that there are 2^n + 2 grid points
 # [2, 4, 6, 10, 18, 34, 66, 130, 258, 514, 1026, 2050]
 #  0  1  2  3   4   5   6    7    8    9    10    11
-sInd = np.array([6, 6, 6])
+sInd = np.array([5, 5, 5])
 
 # Domain lengths - along X, Y and Z directions respectively
 dLen = [1.0, 1.0, 1.0]
@@ -81,19 +81,22 @@ opInt = 1
 fwInt = 1.0
 
 # Final time
-tMax = 0.1
+tMax = 0.05
 
 # Reynolds number
 Re = 1000
+
+# Flag to check if Poisson solver should solve or smooth at coarsest level
+solveSol = False
 
 # Tolerance value in Jacobi iterations
 tolerance = 1.0e-6
 
 # Depth of each V-cycle in multigrid
-VDepth = 5
+VDepth = 4
 
 # Number of V-cycles to be computed
-vcCnt = 14
+vcCnt = 5
 
 # Number of iterations during pre-smoothing
 preSm = 3

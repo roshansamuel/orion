@@ -84,12 +84,12 @@ def multigrid(H):
     for i in range(gv.vcCnt):
         v_cycle()
 
-        chMat = laplace(pData[0])
-
-        resVal = np.amax(np.abs(H[1:-1, 1:-1] - chMat))
-        print("Residual after V-Cycle {0:2d} is {1:.4e}".format(i+1, resVal))
-
         if gv.testPoisson:
+            chMat = laplace(pData[0])
+
+            resVal = np.amax(np.abs(H[1:-1, 1:-1] - chMat))
+            print("Residual after V-Cycle {0:2d} is {1:.4e}".format(i+1, resVal))
+
             errVal = np.amax(np.abs(pAnlt[1:-1, 1:-1] - pData[0][1:-1, 1:-1]))
             print("Error after V-Cycle {0:2d} is {1:.4e}\n".format(i+1, errVal))
 
@@ -122,7 +122,10 @@ def v_cycle():
 
         # If the coarsest level is reached, solve. Otherwise, keep smoothing!
         if vLev == gv.VDepth:
-            solve()
+            if gv.solveSol:
+                solve()
+            else:
+                smooth(gv.preSm + gv.pstSm)
         else:
             smooth(gv.preSm)
 
