@@ -37,8 +37,8 @@ import numpy as np
 # Redefine frequently used numpy object
 npax = np.newaxis
 
-# N should be of the form 2^n + 2 so that there will be 2^n + 3 staggered pressure points, including ghost points
-sLst = [2**x + 2 for x in range(12)]
+# N should be of the form 2^n + 1 so that there will be 2^n + 3 staggered points, including two ghost points
+sLst = [2**x + 1 for x in range(12)]
 
 # Limits along each direction
 # L - Along X

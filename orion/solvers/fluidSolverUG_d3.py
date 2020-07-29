@@ -46,22 +46,23 @@ import time
 L, M, N = grid.L, grid.M, grid.N
 
 def initFields():
+    global L, M, N
     global U, V, W, P
     global Hx, Hy, Hz
 
-    # Create and initialize U, V and P arrays
+    # Create and initialize U, V, W and P arrays
     # The arrays have two extra points
     # These act as ghost points on either sides of the domain
-    P = np.ones([grid.L + 1, grid.M + 1, grid.N + 1])
+    P = np.ones([L + 2, M + 2, N + 2])
 
-    # U is staggered in Y and Z directions and hence has one extra point along these directions
-    U = np.zeros([grid.L, grid.M + 1, grid.N + 1])
+    # U is collocated along X direction and hence has one less point along that direction
+    U = np.zeros([L + 1, M + 2, N + 2])
 
-    # V is staggered in X and Z directions and hence has one extra point along these directions
-    V = np.zeros([grid.L + 1, grid.M, grid.N + 1])
+    # V is collocated along Y direction and hence has one less point along that direction
+    V = np.zeros([L + 2, M + 1, N + 2])
 
-    # W is staggered in X and Y directions and hence has one extra point along these directions
-    W = np.zeros([grid.L + 1, grid.M + 1, grid.N])
+    # W is collocated along Z direction and hence has one less point along that direction
+    W = np.zeros([L + 2, M + 2, N + 1])
 
     # Define arrays for storing RHS of NSE
     Hx = np.zeros_like(U)
@@ -69,8 +70,8 @@ def initFields():
     Hz = np.zeros_like(W)
 
     if gv.probType == 0:
-        # BC for moving top lid - U = 1.0 on lid
-        U[:, :, -1] = 1.0
+        # For moving top lid, U = 1.0 on lid, and second last point lies on the wall
+        U[:, :, -2] = 1.0
     elif gv.probType == 1:
         # Initial condition for forced channel flow
         U[:, :, :] = 1.0
@@ -99,22 +100,22 @@ def euler():
         Hx[:, :, :] += 1.0
 
     # Calculating guessed values of U implicitly
-    Hx[1:L-1, 1:M, 1:N] = U[1:L-1, 1:M, 1:N] + gv.dt*(Hx[1:L-1, 1:M, 1:N] - (P[2:L, 1:M, 1:N] - P[1:L-1, 1:M, 1:N])/grid.hx)
+    Hx[1:L, 1:M+1, 1:N+1] = U[1:L, 1:M+1, 1:N+1] + gv.dt*(Hx[1:L, 1:M+1, 1:N+1] - (P[2:L+1, 1:M+1, 1:N+1] - P[1:L, 1:M+1, 1:N+1])/grid.hx)
     Up = uJacobi(Hx)
 
     # Calculating guessed values of V implicitly
-    Hy[1:L, 1:M-1, 1:N] = V[1:L, 1:M-1, 1:N] + gv.dt*(Hy[1:L, 1:M-1, 1:N] - (P[1:L, 2:M, 1:N] - P[1:L, 1:M-1, 1:N])/grid.hy)
+    Hy[1:L+1, 1:M, 1:N+1] = V[1:L+1, 1:M, 1:N+1] + gv.dt*(Hy[1:L+1, 1:M, 1:N+1] - (P[1:L+1, 2:M+1, 1:N+1] - P[1:L+1, 1:M, 1:N+1])/grid.hy)
     Vp = vJacobi(Hy)
 
     # Calculating guessed values of W implicitly
-    Hz[1:L, 1:M, 1:N-1] = W[1:L, 1:M, 1:N-1] + gv.dt*(Hz[1:L, 1:M, 1:N-1] - (P[1:L, 1:M, 2:N] - P[1:L, 1:M, 1:N-1])/grid.hz)
+    Hz[1:L+1, 1:M+1, 1:N] = W[1:L+1, 1:M+1, 1:N] + gv.dt*(Hz[1:L+1, 1:M+1, 1:N] - (P[1:L+1, 1:M+1, 2:N+1] - P[1:L+1, 1:M+1, 1:N])/grid.hz)
     Wp = wJacobi(Hz)
 
     # Calculating pressure correction term
-    rhs = np.zeros([L+1, M+1, N+1])
-    rhs[1:L, 1:M, 1:N] = ((Up[1:L, 1:M, 1:N] - Up[0:L-1, 1:M, 1:N])/grid.hx +
-                          (Vp[1:L, 1:M, 1:N] - Vp[1:L, 0:M-1, 1:N])/grid.hy +
-                          (Wp[1:L, 1:M, 1:N] - Wp[1:L, 1:M, 0:N-1])/grid.hz)/gv.dt
+    rhs = np.zeros([L+2, M+2, N+2])
+    rhs[1:L+1, 1:M+1, 1:N+1] = ((Up[1:L+1, 1:M+1, 1:N+1] - Up[0:L, 1:M+1, 1:N+1])/grid.hx +
+                                (Vp[1:L+1, 1:M+1, 1:N+1] - Vp[1:L+1, 0:M, 1:N+1])/grid.hy +
+                                (Wp[1:L+1, 1:M+1, 1:N+1] - Wp[1:L+1, 1:M+1, 0:N])/grid.hz)/gv.dt
 
     Pp = ps.multigrid(rhs)
 
@@ -122,44 +123,46 @@ def euler():
     P = P + Pp
 
     # Update new values for U, V and W
-    U[1:L-1, 1:M, 1:N] = Up[1:L-1, 1:M, 1:N] - gv.dt*(Pp[2:L, 1:M, 1:N] - Pp[1:L-1, 1:M, 1:N])/grid.hx
-    V[1:L, 1:M-1, 1:N] = Vp[1:L, 1:M-1, 1:N] - gv.dt*(Pp[1:L, 2:M, 1:N] - Pp[1:L, 1:M-1, 1:N])/grid.hy
-    W[1:L, 1:M, 1:N-1] = Wp[1:L, 1:M, 1:N-1] - gv.dt*(Pp[1:L, 1:M, 2:N] - Pp[1:L, 1:M, 1:N-1])/grid.hz
+    U[1:L, 1:M+1, 1:N+1] = Up[1:L, 1:M+1, 1:N+1] - gv.dt*(Pp[2:L+1, 1:M+1, 1:N+1] - Pp[1:L, 1:M+1, 1:N+1])/grid.hx
+    V[1:L+1, 1:M, 1:N+1] = Vp[1:L+1, 1:M, 1:N+1] - gv.dt*(Pp[1:L+1, 2:M+1, 1:N+1] - Pp[1:L+1, 1:M, 1:N+1])/grid.hy
+    W[1:L+1, 1:M+1, 1:N] = Wp[1:L+1, 1:M+1, 1:N] - gv.dt*(Pp[1:L+1, 1:M+1, 2:N+1] - Pp[1:L+1, 1:M+1, 1:N])/grid.hz
 
     # Impose no-slip BC on new values of U, V and W
     U = bc.imposeUBCs(U)
     V = bc.imposeVBCs(V)
     W = bc.imposeWBCs(W)
 
+    print("Probed velocity data: ", U[30, 16, 30], "\t", V[30, 16, 30], "\t", W[30, 16, 30], "\n")
+
 
 def computeNLinDiff_X(U, V, W):
     global Hx
     global N, M, L
 
-    Hx[1:L-1, 1:M, 1:N] = ((fd.DDXi(U, L-1, M, N) + fd.DDEt(U, L-1, M, N) + fd.DDZt(U, L-1, M, N))*0.5/gv.Re -
-                            fd.D_Xi(U, L-1, M, N)*U[1:L-1, 1:M, 1:N] -
-                      0.25*(V[1:L-1, 0:M-1, 1:N] + V[1:L-1, 1:M, 1:N] + V[2:L, 1:M, 1:N] + V[2:L, 0:M-1, 1:N])*fd.D_Et(U, L-1, M, N) - 
-                      0.25*(W[1:L-1, 1:M, 0:N-1] + W[1:L-1, 1:M, 1:N] + W[2:L, 1:M, 1:N] + W[2:L, 1:M, 0:N-1])*fd.D_Zt(U, L-1, M, N))
+    Hx[1:L, 1:M+1, 1:N+1] = ((fd.DDXi(U, L, M+1, N+1) + fd.DDEt(U, L, M+1, N+1) + fd.DDZt(U, L, M+1, N+1))*0.5/gv.Re -
+                              fd.D_Xi(U, L, M+1, N+1)*U[1:L, 1:M+1, 1:N+1] -
+                           0.25*(V[1:L, 0:M, 1:N+1] + V[1:L, 1:M+1, 1:N+1] + V[2:L+1, 1:M+1, 1:N+1] + V[2:L+1, 0:M, 1:N+1])*fd.D_Et(U, L, M+1, N+1) - 
+                           0.25*(W[1:L, 1:M+1, 0:N] + W[1:L, 1:M+1, 1:N+1] + W[2:L+1, 1:M+1, 1:N+1] + W[2:L+1, 1:M+1, 0:N])*fd.D_Zt(U, L, M+1, N+1))
 
 
 def computeNLinDiff_Y(U, V, W):
     global Hy
     global N, M, L
 
-    Hy[1:L, 1:M-1, 1:N] = ((fd.DDXi(V, L, M-1, N) + fd.DDEt(V, L, M-1, N) + fd.DDZt(V, L, M-1, N))*0.5/gv.Re -
-                            fd.D_Et(V, L, M-1, N)*V[1:L, 1:M-1, 1:N] -
-                      0.25*(U[0:L-1, 1:M-1, 1:N] + U[1:L, 1:M-1, 1:N] + U[1:L, 2:M, 1:N] + U[0:L-1, 2:M, 1:N])*fd.D_Xi(V, L, M-1, N) -
-                      0.25*(W[1:L, 1:M-1, 0:N-1] + W[1:L, 1:M-1, 1:N] + W[1:L, 2:M, 1:N] + W[1:L, 2:M, 0:N-1])*fd.D_Zt(V, L, M-1, N))
+    Hy[1:L+1, 1:M, 1:N+1] = ((fd.DDXi(V, L+1, M, N+1) + fd.DDEt(V, L+1, M, N+1) + fd.DDZt(V, L+1, M, N+1))*0.5/gv.Re -
+                              fd.D_Et(V, L+1, M, N+1)*V[1:L+1, 1:M, 1:N+1] -
+                           0.25*(U[0:L, 1:M, 1:N+1] + U[1:L+1, 1:M, 1:N+1] + U[1:L+1, 2:M+1, 1:N+1] + U[0:L, 2:M+1, 1:N+1])*fd.D_Xi(V, L+1, M, N+1) -
+                           0.25*(W[1:L+1, 1:M, 0:N] + W[1:L+1, 1:M, 1:N+1] + W[1:L+1, 2:M+1, 1:N+1] + W[1:L+1, 2:M+1, 0:N])*fd.D_Zt(V, L+1, M, N+1))
 
 
 def computeNLinDiff_Z(U, V, W):
     global Hz
     global N, M, L
 
-    Hz[1:L, 1:M, 1:N-1] = ((fd.DDXi(W, L, M, N-1) + fd.DDEt(W, L, M, N-1) + fd.DDZt(W, L, M, N-1))*0.5/gv.Re -
-                            fd.D_Zt(W, L, M, N-1)*W[1:L, 1:M, 1:N-1] -
-                      0.25*(U[0:L-1, 1:M, 1:N-1] + U[1:L, 1:M, 1:N-1] + U[1:L, 1:M, 2:N] + U[0:L-1, 1:M, 2:N])*fd.D_Xi(W, L, M, N-1) -
-                      0.25*(V[1:L, 0:M-1, 1:N-1] + V[1:L, 1:M, 1:N-1] + V[1:L, 1:M, 2:N] + V[1:L, 0:M-1, 2:N])*fd.D_Et(W, L, M, N-1))
+    Hz[1:L+1, 1:M+1, 1:N] = ((fd.DDXi(W, L+1, M+1, N) + fd.DDEt(W, L+1, M+1, N) + fd.DDZt(W, L+1, M+1, N))*0.5/gv.Re -
+                              fd.D_Zt(W, L+1, M+1, N)*W[1:L+1, 1:M+1, 1:N] -
+                           0.25*(U[0:L, 1:M+1, 1:N] + U[1:L+1, 1:M+1, 1:N] + U[1:L+1, 1:M+1, 2:N+1] + U[0:L, 1:M+1, 2:N+1])*fd.D_Xi(W, L+1, M+1, N) -
+                           0.25*(V[1:L+1, 0:M, 1:N] + V[1:L+1, 1:M+1, 1:N] + V[1:L+1, 1:M+1, 2:N+1] + V[1:L+1, 0:M, 2:N+1])*fd.D_Et(W, L+1, M+1, N))
 
 
 #Jacobi iterative solver for U
@@ -172,24 +175,26 @@ def uJacobi(rho):
     jCnt = 0
 
     while True:
-        next_sol[1:L-1, 1:M, 1:N] = ((grid.hy2hz2*(prev_sol[0:L-2,   1:M, 1:N] + prev_sol[  2:L,   1:M, 1:N]) +
-                                      grid.hz2hx2*(prev_sol[1:L-1, 0:M-1, 1:N] + prev_sol[1:L-1, 2:M+1, 1:N]) +
-                                      grid.hx2hy2*(prev_sol[1:L-1, 1:M, 0:N-1] + prev_sol[1:L-1, 1:M, 2:N+1]))*
-                                       gv.dt/(grid.hx2hy2hz2*2.0*gv.Re) + rho[1:L-1, 1:M, 1:N])/ \
+        next_sol[1:L, 2:M, 2:N] = ((grid.hy2hz2*(prev_sol[0:L-1, 2:M, 2:N] + prev_sol[2:L+1, 2:M, 2:N]) +
+                                    grid.hz2hx2*(prev_sol[1:L, 1:M-1, 2:N] + prev_sol[1:L, 3:M+1, 2:N]) +
+                                    grid.hx2hy2*(prev_sol[1:L, 2:M, 1:N-1] + prev_sol[1:L, 2:M, 3:N+1]))*
+                                       gv.dt/(grid.hx2hy2hz2*2.0*gv.Re) + rho[1:L, 2:M, 2:N])/ \
                                 (1.0 + gv.dt*(grid.hy2hz2 + grid.hz2hx2 + grid.hx2hy2)/(gv.Re*grid.hx2hy2hz2))
 
         # IMPOSE BOUNDARY CONDITION AND COPY TO PREVIOUS SOLUTION ARRAY
         next_sol = bc.imposeUBCs(next_sol)
         prev_sol = np.copy(next_sol)
 
-        test_sol[1:L-1, 1:M, 1:N] = next_sol[1:L-1, 1:M, 1:N] - (
-                                    fd.DDXi(next_sol, L-1, M, N) + fd.DDEt(next_sol, L-1, M, N) + fd.DDZt(next_sol, L-1, M, N))*0.5*gv.dt/gv.Re
+        test_sol[1:L, 2:M, 2:N] = next_sol[1:L, 2:M, 2:N] - 0.5*gv.dt*(
+                                 (next_sol[0:L-1, 2:M, 2:N] - 2.0*next_sol[1:L, 2:M, 2:N] + next_sol[2:L+1, 2:M, 2:N])/grid.hx2 +
+                                 (next_sol[1:L, 1:M-1, 2:N] - 2.0*next_sol[1:L, 2:M, 2:N] + next_sol[1:L, 3:M+1, 2:N])/grid.hy2 +
+                                 (next_sol[1:L, 2:M, 1:N-1] - 2.0*next_sol[1:L, 2:M, 2:N] + next_sol[1:L, 2:M, 3:N+1])/grid.hz2)/gv.Re
 
-        error_temp = np.fabs(rho[1:L-1, 1:M, 1:N] - test_sol[1:L-1, 1:M, 1:N])
+        error_temp = np.fabs(rho[1:L, 2:M, 2:N] - test_sol[1:L, 2:M, 2:N])
         maxErr = np.amax(error_temp)
         if maxErr < gv.tolerance:
-            if gv.iCnt % gv.opInt == 0:
-                print("Jacobi solver for U converged in ", jCnt, " iterations")
+            #if gv.iCnt % gv.opInt == 0:
+            #    print("Jacobi solver for U converged in ", jCnt, " iterations")
             break
 
         jCnt += 1
@@ -211,24 +216,26 @@ def vJacobi(rho):
     jCnt = 0
 
     while True:
-        next_sol[1:L, 1:M-1, 1:N] = ((grid.hy2hz2*(prev_sol[0:L-1, 1:M-1, 1:N] + prev_sol[2:L+1, 1:M-1, 1:N]) +
-                                      grid.hz2hx2*(prev_sol[1:L, 0:M-2,   1:N] + prev_sol[    1:L, 2:M, 1:N]) +
-                                      grid.hx2hy2*(prev_sol[1:L, 1:M-1, 0:N-1] + prev_sol[1:L, 1:M-1, 2:N+1]))*
-                                       gv.dt/(grid.hx2hy2hz2*2.0*gv.Re) + rho[1:L, 1:M-1, 1:N])/ \
+        next_sol[2:L, 1:M, 2:N] = ((grid.hy2hz2*(prev_sol[1:L-1, 1:M, 2:N] + prev_sol[3:L+1, 1:M, 2:N]) +
+                                    grid.hz2hx2*(prev_sol[2:L, 0:M-1, 2:N] + prev_sol[2:L, 2:M+1, 2:N]) +
+                                    grid.hx2hy2*(prev_sol[2:L, 1:M, 1:N-1] + prev_sol[2:L, 1:M, 3:N+1]))*
+                                       gv.dt/(grid.hx2hy2hz2*2.0*gv.Re) + rho[2:L, 1:M, 2:N])/ \
                                 (1.0 + gv.dt*(grid.hy2hz2 + grid.hz2hx2 + grid.hx2hy2)/(gv.Re*grid.hx2hy2hz2))
 
         # IMPOSE BOUNDARY CONDITION AND COPY TO PREVIOUS SOLUTION ARRAY
         next_sol = bc.imposeVBCs(next_sol)
         prev_sol = np.copy(next_sol)
 
-        test_sol[1:L, 1:M-1, 1:N] = next_sol[1:L, 1:M-1, 1:N] - (
-                                    fd.DDXi(next_sol, L, M-1, N) + fd.DDEt(next_sol, L, M-1, N) + fd.DDZt(next_sol, L, M-1, N))*0.5*gv.dt/gv.Re
+        test_sol[2:L, 1:M, 2:N] = next_sol[2:L, 1:M, 2:N] - 0.5*gv.dt*(
+                                 (next_sol[1:L-1, 1:M, 2:N] - 2.0*next_sol[2:L, 1:M, 2:N] + next_sol[3:L+1, 1:M, 2:N])/grid.hx2 +
+                                 (next_sol[2:L, 0:M-1, 2:N] - 2.0*next_sol[2:L, 1:M, 2:N] + next_sol[2:L, 2:M+1, 2:N])/grid.hy2 +
+                                 (next_sol[2:L, 1:M, 1:N-1] - 2.0*next_sol[2:L, 1:M, 2:N] + next_sol[2:L, 1:M, 3:N+1])/grid.hz2)/gv.Re
 
-        error_temp = np.fabs(rho[1:L, 1:M-1, 1:N] - test_sol[1:L, 1:M-1, 1:N])
+        error_temp = np.fabs(rho[2:L, 1:M, 2:N] - test_sol[2:L, 1:M, 2:N])
         maxErr = np.amax(error_temp)
         if maxErr < gv.tolerance:
-            if gv.iCnt % gv.opInt == 0:
-                print("Jacobi solver for V converged in ", jCnt, " iterations")
+            #if gv.iCnt % gv.opInt == 0:
+            #    print("Jacobi solver for V converged in ", jCnt, " iterations")
             break
 
         jCnt += 1
@@ -250,24 +257,26 @@ def wJacobi(rho):
     jCnt = 0
 
     while True:
-        next_sol[1:L, 1:M, 1:N-1] = ((grid.hy2hz2*(prev_sol[0:L-1, 1:M, 1:N-1] + prev_sol[2:L+1, 1:M, 1:N-1]) +
-                                      grid.hz2hx2*(prev_sol[1:L, 0:M-1, 1:N-1] + prev_sol[1:L, 2:M+1, 1:N-1]) +
-                                      grid.hx2hy2*(prev_sol[1:L,   1:M, 0:N-2] + prev_sol[1:L,   1:M,   2:N]))*
-                                       gv.dt/(grid.hx2hy2hz2*2.0*gv.Re) + rho[1:L, 1:M, 1:N-1])/ \
+        next_sol[2:L, 2:M, 1:N] = ((grid.hy2hz2*(prev_sol[1:L-1, 2:M, 1:N] + prev_sol[3:L+1, 2:M, 1:N]) +
+                                    grid.hz2hx2*(prev_sol[2:L, 1:M-1, 1:N] + prev_sol[2:L, 3:M+1, 1:N]) +
+                                    grid.hx2hy2*(prev_sol[2:L, 2:M, 0:N-1] + prev_sol[2:L, 2:M, 2:N+1]))*
+                                       gv.dt/(grid.hx2hy2hz2*2.0*gv.Re) + rho[2:L, 2:M, 1:N])/ \
                                 (1.0 + gv.dt*(grid.hy2hz2 + grid.hz2hx2 + grid.hx2hy2)/(gv.Re*grid.hx2hy2hz2))
 
         # IMPOSE BOUNDARY CONDITION AND COPY TO PREVIOUS SOLUTION ARRAY
         next_sol = bc.imposeWBCs(next_sol)
         prev_sol = np.copy(next_sol)
 
-        test_sol[1:L, 1:M, 1:N-1] = next_sol[  1:L, 1:M, 1:N-1] - (
-                                    fd.DDXi(next_sol, L, M, N-1) + fd.DDEt(next_sol, L, M, N-1) + fd.DDZt(next_sol, L, M, N-1))*0.5*gv.dt/gv.Re
+        test_sol[2:L, 2:M, 1:N] = next_sol[2:L, 2:M, 1:N] - 0.5*gv.dt*(
+                                 (next_sol[1:L-1, 2:M, 1:N] - 2.0*next_sol[2:L, 2:M, 1:N] + next_sol[3:L+1, 2:M, 1:N])/grid.hx2 +
+                                 (next_sol[2:L, 1:M-1, 1:N] - 2.0*next_sol[2:L, 2:M, 1:N] + next_sol[2:L, 3:M+1, 1:N])/grid.hy2 +
+                                 (next_sol[2:L, 2:M, 0:N-1] - 2.0*next_sol[2:L, 2:M, 1:N] + next_sol[2:L, 2:M, 2:N+1])/grid.hz2)/gv.Re
 
-        error_temp = np.fabs(rho[1:L, 1:M, 1:N-1] - test_sol[1:L, 1:M, 1:N-1])
+        error_temp = np.fabs(rho[2:L, 2:M, 1:N] - test_sol[2:L, 2:M, 1:N])
         maxErr = np.amax(error_temp)
         if maxErr < gv.tolerance:
-            if gv.iCnt % gv.opInt == 0:
-                print("Jacobi solver for W converged in ", jCnt, " iterations")
+            #if gv.iCnt % gv.opInt == 0:
+            #    print("Jacobi solver for W converged in ", jCnt, " iterations")
             break
 
         jCnt += 1
@@ -288,7 +297,7 @@ OUTPUT: The maximum value of divergence in double precision
     global N, M, L
     global U, V, W
 
-    divMat = np.zeros([L+1, M+1, N+1])
+    divMat = np.zeros([L, M, N])
     for i in range(1, L):
         for j in range(1, M):
             for k in range(1, N):

@@ -143,20 +143,20 @@ else:
             U[-1, :, :] = -U[-2, :, :]
 
             # Front wall
-            U[:, 0, :] = 0.0
+            U[:, 1, :] = 0.0
 
             # Back wall
-            U[:, -1, :] = 0.0
+            U[:, -2, :] = 0.0
 
         # Bottom wall
-        U[:, :, 0] = 0.0
+        U[:, :, 1] = 0.0
 
         # Top wall
         if probType == 0:
             # Moving lid on top for LDC
-            U[:, :, -1] = 1.0
+            U[:, :, -2] = 1.0
         elif probType == 1:
-            U[:, :, -1] = 0.0
+            U[:, :, -2] = 0.0
 
         return U
 
@@ -180,10 +180,10 @@ else:
         # No-slip and no-penetration BCs
         else:
             # Left wall
-            V[0, :, :] = 0.0
+            V[1, :, :] = 0.0
 
             # Right wall
-            V[-1, :, :] = 0.0
+            V[-2, :, :] = 0.0
 
             # Front wall
             V[:, 0, :] = -V[:, 1, :]
@@ -192,10 +192,10 @@ else:
             V[:, -1, :] = -V[:, -2, :]
 
         # Bottom wall
-        V[:, :, 0] = 0.0
+        V[:, :, 1] = 0.0
 
         # Top wall
-        V[:, :, -1] = 0.0
+        V[:, :, -2] = 0.0
 
         return V
 
@@ -219,16 +219,16 @@ else:
         # No-slip and no-penetration BCs
         else:
             # Left wall
-            W[0, :, :] = 0.0
+            W[1, :, :] = 0.0
 
             # Right wall
-            W[-1, :, :] = 0.0
+            W[-2, :, :] = 0.0
 
             # Front wall
-            W[:, 0, :] = 0.0
+            W[:, 1, :] = 0.0
 
             # Back wall
-            W[:, -1, :] = 0.0
+            W[:, -2, :] = 0.0
 
         # Bottom wall
         W[:, :, 0] = -W[:, :, 1]

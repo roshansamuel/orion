@@ -44,7 +44,7 @@ if gv.testPoisson:
 ############################### GLOBAL VARIABLES ################################
 
 # Get array of grid sizes are tuples corresponding to each level of V-Cycle
-N = [(grid.sLst[x[0]] - 1, grid.sLst[x[1]] - 1, grid.sLst[x[2]] - 1) for x in [gv.sInd - y for y in range(gv.VDepth + 1)]]
+N = [(grid.sLst[x[0]], grid.sLst[x[1]], grid.sLst[x[2]]) for x in [gv.sInd - y for y in range(gv.VDepth + 1)]]
 
 # Define array of grid spacings along X
 hx = [1.0/(x[0]-1) for x in N]

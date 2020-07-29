@@ -37,6 +37,11 @@ from orion.globalVars import planar
 import numpy as np
 
 
+# In all the below differentiation functions, Nx, Ny and Nz are the number of points
+# in the domain *excluding the ghost points* along X, Y and Z respectively.
+# The input field for each function will be expected to have Nx + 2, Ny + 2 and Nz + 2
+# points, but the returned matrix will exclude the ghost points.
+
 if planar:
 ############################# 2D VERSIONS #############################
     def DDXi(inpFld, Nx, Nz):
