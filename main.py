@@ -120,7 +120,10 @@ def timeIntegrate():
         ndTime += gv.dt
         if gv.iCnt % gv.opInt == 0:
             print("Time: {0:9.5f}".format(ndTime))
-            print("Maximum divergence: {0:8.5f} at ({1:d}, {2:d}, {3:d})\n".format(maxDiv[1], maxDiv[0][0], maxDiv[0][1], maxDiv[0][2]))
+            if gv.planar:
+                print("Maximum divergence: {0:8.5f} at ({1:d}, {2:d})\n".format(maxDiv[1], maxDiv[0][0], maxDiv[0][1]))
+            else:
+                print("Maximum divergence: {0:8.5f} at ({1:d}, {2:d}, {3:d})\n".format(maxDiv[1], maxDiv[0][0], maxDiv[0][1], maxDiv[0][2]))
 
         if ndTime > gv.tMax:
             break

@@ -132,8 +132,6 @@ def euler():
     V = bc.imposeVBCs(V)
     W = bc.imposeWBCs(W)
 
-    print("Probed velocity data: ", U[30, 16, 30], "\t", V[30, 16, 30], "\t", W[30, 16, 30], "\n")
-
 
 def computeNLinDiff_X(U, V, W):
     global Hx
