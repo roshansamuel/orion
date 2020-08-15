@@ -191,8 +191,6 @@ def uJacobi(rho):
         error_temp = np.fabs(rho[1:L, 2:M, 2:N] - test_sol[1:L, 2:M, 2:N])
         maxErr = np.amax(error_temp)
         if maxErr < gv.tolerance:
-            #if gv.iCnt % gv.opInt == 0:
-            #    print("Jacobi solver for U converged in ", jCnt, " iterations")
             break
 
         jCnt += 1
@@ -232,8 +230,6 @@ def vJacobi(rho):
         error_temp = np.fabs(rho[2:L, 1:M, 2:N] - test_sol[2:L, 1:M, 2:N])
         maxErr = np.amax(error_temp)
         if maxErr < gv.tolerance:
-            #if gv.iCnt % gv.opInt == 0:
-            #    print("Jacobi solver for V converged in ", jCnt, " iterations")
             break
 
         jCnt += 1
@@ -273,8 +269,6 @@ def wJacobi(rho):
         error_temp = np.fabs(rho[2:L, 2:M, 1:N] - test_sol[2:L, 2:M, 1:N])
         maxErr = np.amax(error_temp)
         if maxErr < gv.tolerance:
-            #if gv.iCnt % gv.opInt == 0:
-            #    print("Jacobi solver for W converged in ", jCnt, " iterations")
             break
 
         jCnt += 1

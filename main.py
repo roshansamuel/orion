@@ -61,6 +61,7 @@ def main():
     else:
         print("\nUsing " + str(gv.nProcs) + " out of " + str(maxProcs) + " processors\n")
 
+    gv.checkParams()
     fs.grid.initializeGrid()
 
     if not gv.uniformGrid:

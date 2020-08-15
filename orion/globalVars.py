@@ -38,7 +38,7 @@ import numpy as np
 
 # Set whether the simulation is going to be 2D or 3D
 # If 2D, set the below flag to True
-planar = True
+planar = False
 
 # Set below flag to True if the Poisson solver is being tested
 testPoisson = False
@@ -49,13 +49,13 @@ nProcs = 8
 # Choose the grid sizes as indices from below list so that there are 2^n + 2 grid points
 # [2, 4, 6, 10, 18, 34, 66, 130, 258, 514, 1026, 2050]
 #  0  1  2  3   4   5   6    7    8    9    10    11
-sInd = np.array([6, 6, 6])
+sInd = np.array([5, 5, 5])
 
 # Domain lengths - along X, Y and Z directions respectively
 dLen = [1.0, 1.0, 1.0]
 
 # Turn below flag on when using uniform grid
-uniformGrid = True
+uniformGrid = False
 
 # If above flag is True, set tangent-hyperbolic stretching factors along X, Y and Z directions respectively
 beta = [1.0, 1.0, 1.0]
@@ -93,7 +93,7 @@ solveSol = False
 tolerance = 1.0e-6
 
 # Depth of each V-cycle in multigrid
-VDepth = 6
+VDepth = 4
 
 # Number of V-cycles to be computed
 vcCnt = 7
@@ -140,10 +140,17 @@ def printParams():
     if uniformGrid:
         print("Using uniform mesh in domain\n")
     else:
-        print("Using non-uniform mesh with tangent-hyperbolic stretching factors {}, {} and {} along X, Y and Z respectively\n".format(beta))
+        print("Using non-uniform mesh with tangent-hyperbolic stretching factors {}, {} and {} along X, Y and Z respectively\n".format(*beta))
 
     print("Tolerance value in Jacobi iterations is {}\n".format(tolerance))
     print("Depth of each V-cycle in multigrid is {}\n".format(VDepth))
     print("Number of V-cycles to be computed is {}\n".format(vcCnt))
     print("Number of iterations during pre-smoothing is {}\n".format(preSm))
     print("Number of iterations during post-smoothing is {}\n".format(pstSm))
+
+########################################### CHECK PARAMETERS #######################################
+
+def checkParams():
+    if VDepth >= min(sInd):
+        print("ERROR: V-Cycle depth exceeds the allowable depth for given grid size")
+        exit()
