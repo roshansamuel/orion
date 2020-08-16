@@ -37,80 +37,75 @@ from orion.globalVars import planar
 import numpy as np
 
 
-# In all the below differentiation functions, Nx, Ny and Nz are the number of points
-# in the domain *excluding the ghost points* along X, Y and Z respectively.
-# The input field for each function will be expected to have Nx + 2, Ny + 2 and Nz + 2
-# points, but the returned matrix will exclude the ghost points.
-
 if planar:
 ############################# 2D VERSIONS #############################
-    def DDXi(inpFld, Nx, Nz):
+    def DDXi(inpFld):
         outFld = np.zeros_like(inpFld)
-        outFld[1:Nx, 1:Nz] = (inpFld[0:Nx-1, 1:Nz] - 2.0*inpFld[1:Nx, 1:Nz] + inpFld[2:Nx+1, 1:Nz])/hx2
+        outFld[1:-1, 1:-1] = (inpFld[0:-2, 1:-1] - 2.0*inpFld[1:-1, 1:-1] + inpFld[2:, 1:-1])/hx2
 
-        return outFld[1:Nx, 1:Nz]
+        return outFld[1:-1, 1:-1]
 
 
-    def DDZt(inpFld, Nx, Nz):
+    def DDZt(inpFld):
         outFld = np.zeros_like(inpFld)
-        outFld[1:Nx, 1:Nz] = (inpFld[1:Nx, 0:Nz-1] - 2.0*inpFld[1:Nx, 1:Nz] + inpFld[1:Nx, 2:Nz+1])/hz2
+        outFld[1:-1, 1:-1] = (inpFld[1:-1, 0:-2] - 2.0*inpFld[1:-1, 1:-1] + inpFld[1:-1, 2:])/hz2
 
-        return outFld[1:Nx, 1:Nz]
+        return outFld[1:-1, 1:-1]
 
 
-    def D_Xi(inpFld, Nx, Nz):
+    def D_Xi(inpFld):
         outFld = np.zeros_like(inpFld)
-        outFld[1:Nx, 1:Nz] = (inpFld[2:Nx+1, 1:Nz] - inpFld[0:Nx-1, 1:Nz])*0.5/hx
+        outFld[1:-1, 1:-1] = (inpFld[2:, 1:-1] - inpFld[0:-2, 1:-1])*0.5/hx
 
-        return outFld[1:Nx, 1:Nz]
+        return outFld[1:-1, 1:-1]
 
 
-    def D_Zt(inpFld, Nx, Nz):
+    def D_Zt(inpFld):
         outFld = np.zeros_like(inpFld)
-        outFld[1:Nx, 1:Nz] = (inpFld[1:Nx, 2:Nz+1] - inpFld[1:Nx, 0:Nz-1])*0.5/hz
+        outFld[1:-1, 1:-1] = (inpFld[1:-1, 2:] - inpFld[1:-1, 0:-2])*0.5/hz
 
-        return outFld[1:Nx, 1:Nz]
+        return outFld[1:-1, 1:-1]
 
 else:
 ############################# 3D VERSIONS #############################
-    def DDXi(inpFld, Nx, Ny, Nz):
+    def DDXi(inpFld):
         outFld = np.zeros_like(inpFld)
-        outFld[1:Nx, 1:Ny, 1:Nz] = (inpFld[0:Nx-1, 1:Ny, 1:Nz] - 2.0*inpFld[1:Nx, 1:Ny, 1:Nz] + inpFld[2:Nx+1, 1:Ny, 1:Nz])/hx2
+        outFld[1:-1, 1:-1, 1:-1] = (inpFld[0:-2, 1:-1, 1:-1] - 2.0*inpFld[1:-1, 1:-1, 1:-1] + inpFld[2:, 1:-1, 1:-1])/hx2
 
-        return outFld[1:Nx, 1:Ny, 1:Nz]
+        return outFld[1:-1, 1:-1, 1:-1]
 
 
-    def DDEt(inpFld, Nx, Ny, Nz):
+    def DDEt(inpFld):
         outFld = np.zeros_like(inpFld)
-        outFld[1:Nx, 1:Ny, 1:Nz] = (inpFld[1:Nx, 0:Ny-1, 1:Nz] - 2.0*inpFld[1:Nx, 1:Ny, 1:Nz] + inpFld[1:Nx, 2:Ny+1, 1:Nz])/hy2
+        outFld[1:-1, 1:-1, 1:-1] = (inpFld[1:-1, 0:-2, 1:-1] - 2.0*inpFld[1:-1, 1:-1, 1:-1] + inpFld[1:-1, 2:, 1:-1])/hy2
 
-        return outFld[1:Nx, 1:Ny, 1:Nz]
+        return outFld[1:-1, 1:-1, 1:-1]
 
 
-    def DDZt(inpFld, Nx, Ny, Nz):
+    def DDZt(inpFld):
         outFld = np.zeros_like(inpFld)
-        outFld[1:Nx, 1:Ny, 1:Nz] = (inpFld[1:Nx, 1:Ny, 0:Nz-1] - 2.0*inpFld[1:Nx, 1:Ny, 1:Nz] + inpFld[1:Nx, 1:Ny, 2:Nz+1])/hz2
+        outFld[1:-1, 1:-1, 1:-1] = (inpFld[1:-1, 1:-1, 0:-2] - 2.0*inpFld[1:-1, 1:-1, 1:-1] + inpFld[1:-1, 1:-1, 2:])/hz2
 
-        return outFld[1:Nx, 1:Ny, 1:Nz]
+        return outFld[1:-1, 1:-1, 1:-1]
 
 
-    def D_Xi(inpFld, Nx, Ny, Nz):
+    def D_Xi(inpFld):
         outFld = np.zeros_like(inpFld)
-        outFld[1:Nx, 1:Ny, 1:Nz] = (inpFld[2:Nx+1, 1:Ny, 1:Nz] - inpFld[0:Nx-1, 1:Ny, 1:Nz])*0.5/hx
+        outFld[1:-1, 1:-1, 1:-1] = (inpFld[2:, 1:-1, 1:-1] - inpFld[0:-2, 1:-1, 1:-1])*0.5/hx
 
-        return outFld[1:Nx, 1:Ny, 1:Nz]
+        return outFld[1:-1, 1:-1, 1:-1]
 
 
-    def D_Et(inpFld, Nx, Ny, Nz):
+    def D_Et(inpFld):
         outFld = np.zeros_like(inpFld)
-        outFld[1:Nx, 1:Ny, 1:Nz] = (inpFld[1:Nx, 2:Ny+1, 1:Nz] - inpFld[1:Nx, 0:Ny-1, 1:Nz])*0.5/hy
+        outFld[1:-1, 1:-1, 1:-1] = (inpFld[1:-1, 2:, 1:-1] - inpFld[1:-1, 0:-2, 1:-1])*0.5/hy
 
-        return outFld[1:Nx, 1:Ny, 1:Nz]
+        return outFld[1:-1, 1:-1, 1:-1]
 
 
-    def D_Zt(inpFld, Nx, Ny, Nz):
+    def D_Zt(inpFld):
         outFld = np.zeros_like(inpFld)
-        outFld[1:Nx, 1:Ny, 1:Nz] = (inpFld[1:Nx, 1:Ny, 2:Nz+1] - inpFld[1:Nx, 1:Ny, 0:Nz-1])*0.5/hz
+        outFld[1:-1, 1:-1, 1:-1] = (inpFld[1:-1, 1:-1, 2:] - inpFld[1:-1, 1:-1, 0:-2])*0.5/hz
 
-        return outFld[1:Nx, 1:Ny, 1:Nz]
+        return outFld[1:-1, 1:-1, 1:-1]
 

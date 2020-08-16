@@ -123,18 +123,18 @@ def computeNLinDiff_X(U, W):
     global Hx
     global N, L
 
-    Hx[1:L, 1:N+1] = ((fd.DDXi(U, L, N+1) + fd.DDZt(U, L, N+1))*0.5/gv.Re -
-                       fd.D_Xi(U, L, N+1)*U[1:L, 1:N+1] -
-                      0.25*(W[1:L, 0:N] + W[1:L, 1:N+1] + W[2:L+1, 1:N+1] + W[2:L+1, 0:N])*fd.D_Zt(U, L, N+1))
+    Hx[1:L, 1:N+1] = ((fd.DDXi(U) + fd.DDZt(U))*0.5/gv.Re -
+                       fd.D_Xi(U)*U[1:L, 1:N+1] -
+                      0.25*(W[1:L, 0:N] + W[1:L, 1:N+1] + W[2:L+1, 1:N+1] + W[2:L+1, 0:N])*fd.D_Zt(U))
 
 
 def computeNLinDiff_Z(U, W):
     global Hz
     global N, L
 
-    Hz[1:L+1, 1:N] = ((fd.DDXi(W, L+1, N) + fd.DDZt(W, L+1, N))*0.5/gv.Re -
-                       fd.D_Zt(W, L+1, N)*W[1:L+1, 1:N] -
-                      0.25*(U[0:L, 1:N] + U[1:L+1, 1:N] + U[1:L+1, 2:N+1] + U[0:L, 2:N+1])*fd.D_Xi(W, L+1, N))
+    Hz[1:L+1, 1:N] = ((fd.DDXi(W) + fd.DDZt(W))*0.5/gv.Re -
+                       fd.D_Zt(W)*W[1:L+1, 1:N] -
+                      0.25*(U[0:L, 1:N] + U[1:L+1, 1:N] + U[1:L+1, 2:N+1] + U[0:L, 2:N+1])*fd.D_Xi(W))
 
 
 #Jacobi iterative solver for U
@@ -227,8 +227,7 @@ OUTPUT: The maximum value of divergence in double precision
     divMat = np.zeros([L, N])
     for i in range(1, L):
         for k in range(1, N):
-            divMat[i, k] = (U[i, k] - U[i-1, k])/(grid.xColl[i] - grid.xColl[i-1]) + \
-                           (W[i, k] - W[i, k-1])/(grid.zColl[k] - grid.zColl[k-1])
+            divMat[i, k] = (U[i, k] - U[i-1, k])/grid.hx + (W[i, k] - W[i, k-1])/grid.hz
 
     return np.unravel_index(divMat.argmax(), divMat.shape), np.amax(divMat)
 

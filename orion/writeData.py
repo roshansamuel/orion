@@ -40,6 +40,11 @@ import h5py as hp
 def writeSoln3D(U, V, W, P, time):
     L, M ,N = tuple(map(lambda i: i - 1, P.shape))
 
+    # WARNING: For uniform grid, meshData doesn't store X, Y and Z coordinates
+    # Instead only hx, hy and hz are stored.
+    # Hence xColl, yColl and zColl used when fwMode = ASCII are all zeroes *when using uniform grid*
+    # Need to correct this, but ASCII mode of file-writing is no longer in favour
+    # Clearly I need more motivation to correct this.
     if fwMode == "ASCII":
         fName = "Soln_" + "{0:09.5f}".format(time) + ".dat"
         print("Writing solution file: ", fName)
@@ -77,6 +82,11 @@ def writeSoln3D(U, V, W, P, time):
 def writeSoln2D(U, W, P, time):
     L, N = tuple(map(lambda i: i - 1, P.shape))
 
+    # WARNING: For uniform grid, meshData doesn't store X, Y and Z coordinates
+    # Instead only hx, hy and hz are stored.
+    # Hence xColl, yColl and zColl used when fwMode = ASCII are all zeroes *when using uniform grid*
+    # Need to correct this, but ASCII mode of file-writing is no longer in favour
+    # Clearly I need more motivation to correct this.
     if fwMode == "ASCII":
         fName = "Soln_" + "{0:09.5f}".format(time) + ".dat"
         print("Writing solution file: ", fName)

@@ -80,38 +80,38 @@ hx2hy2hz2 = hx2*hy2*hz2
 # Maximum number of jacobi iterations
 maxCount = 10*N*M*L
 
-xColl = np.zeros(L)
-yColl = np.zeros(M)
-zColl = np.zeros(N)
-xStag = np.zeros(L-1)
-yStag = np.zeros(M-1)
-zStag = np.zeros(N-1)
+xStag = np.zeros(L)
+yStag = np.zeros(M)
+zStag = np.zeros(N)
+xColl = np.zeros(L-1)
+yColl = np.zeros(M-1)
+zColl = np.zeros(N-1)
 
 # Grid metric arrays. Used by the non uniform solvers
-# Note that the default values of arrays initialized below corresponds to uniform grid values
-xi_xColl = np.ones(L)       #-- dXi/dX at all x-grid nodes
-xixxColl = np.zeros(L)      #-- d2Xi/dX2 at all x-grid nodes
-xix2Coll = np.ones(L)       #-- (dXi/dX)**2 at all x-grid nodes
+# The default values of arrays initialized below corresponds to uniform grid values
+xi_xColl = np.ones_like(xColl)       #-- dXi/dX at all face-centered points along X direction
+xixxColl = np.zeros_like(xColl)      #-- d2Xi/dX2 at all face-centered points along X direction
+xix2Coll = np.ones_like(xColl)       #-- (dXi/dX)**2 at all face-centered points along X direction
 
-xi_xStag = np.ones(L-1)     #-- dXi/dX at all x-grid nodes
-xixxStag = np.zeros(L-1)    #-- d2Xi/dX2 at all x-grid nodes
-xix2Stag = np.ones(L-1)     #-- (dXi/dX)**2 at all x-grid nodes
+xi_xStag = np.ones_like(xStag)       #-- dXi/dX at all cell-centered points along X direction
+xixxStag = np.zeros_like(xStag)      #-- d2Xi/dX2 at all cell-centered points along X direction
+xix2Stag = np.ones_like(xStag)       #-- (dXi/dX)**2 at all cell-centered points along X direction
 
-et_yColl = np.ones(M)       #-- dEt/dY at all y-grid nodes
-etyyColl = np.zeros(M)      #-- d2Et/dY2 at all y-grid nodes
-ety2Coll = np.ones(M)       #-- (dEt/dY)**2 at all y-grid nodes
+et_yColl = np.ones_like(yColl)       #-- dEt/dY at all face-centered points along Y direction
+etyyColl = np.zeros_like(yColl)      #-- d2Et/dY2 at all face-centered points along Y direction
+ety2Coll = np.ones_like(yColl)       #-- (dEt/dY)**2 at all face-centered points along Y direction
 
-et_yStag = np.ones(M-1)     #-- dEt/dY at all y-grid nodes
-etyyStag = np.zeros(M-1)    #-- d2Et/dY2 at all y-grid nodes
-ety2Stag = np.ones(M-1)     #-- (dEt/dY)**2 at all y-grid nodes
+et_yStag = np.ones_like(yStag)       #-- dEt/dY at all cell-centered points along Y direction
+etyyStag = np.zeros_like(yStag)      #-- d2Et/dY2 at all cell-centered points along Y direction
+ety2Stag = np.ones_like(yStag)       #-- (dEt/dY)**2 at all cell-centered points along Y direction
 
-zt_zColl = np.ones(N)       #-- dZt/dZ at all z-grid nodes
-ztzzColl = np.zeros(N)      #-- d2Zt/dZ2 at all z-grid nodes
-ztz2Coll = np.ones(N)       #-- (dZt/dZ)**2 at all z-grid nodes
+zt_zColl = np.ones_like(zColl)       #-- dZt/dZ at all face-centered points along Z direction
+ztzzColl = np.zeros_like(zColl)      #-- d2Zt/dZ2 at all face-centered points along Z direction
+ztz2Coll = np.ones_like(zColl)       #-- (dZt/dZ)**2 at all face-centered points along Z direction
 
-zt_zStag = np.ones(N-1)     #-- dZt/dZ at all z-grid nodes
-ztzzStag = np.zeros(N-1)    #-- d2Zt/dZ2 at all z-grid nodes
-ztz2Stag = np.ones(N-1)     #-- (dZt/dZ)**2 at all z-grid nodes
+zt_zStag = np.ones_like(zStag)       #-- dZt/dZ at all cell-centered points along Z direction
+ztzzStag = np.zeros_like(zStag)      #-- d2Zt/dZ2 at all cell-centered points along Z direction
+ztz2Stag = np.ones_like(zStag)       #-- (dZt/dZ)**2 at all cell-centered points along Z direction
 
 
 def initializeGrid():
@@ -125,14 +125,14 @@ def initializeGrid():
     et = np.linspace(0.0, 1.0, M)
     zt = np.linspace(0.0, 1.0, N)
 
-    # Initialize staggered and collocated grids
-    xColl = [xLen*(1.0 - np.tanh(xBeta*(1.0 - 2.0*i))/np.tanh(xBeta))/2.0 for i in xi]
-    yColl = [yLen*(1.0 - np.tanh(yBeta*(1.0 - 2.0*i))/np.tanh(yBeta))/2.0 for i in et]
-    zColl = [zLen*(1.0 - np.tanh(zBeta*(1.0 - 2.0*i))/np.tanh(zBeta))/2.0 for i in zt]
+    # Initialize face-centered and cell-centered grids
+    xStag = [xLen*(1.0 - np.tanh(xBeta*(1.0 - 2.0*i))/np.tanh(xBeta))/2.0 for i in xi]
+    yStag = [yLen*(1.0 - np.tanh(yBeta*(1.0 - 2.0*i))/np.tanh(yBeta))/2.0 for i in et]
+    zStag = [zLen*(1.0 - np.tanh(zBeta*(1.0 - 2.0*i))/np.tanh(zBeta))/2.0 for i in zt]
 
-    xStag = [xLen*(1.0 - np.tanh(xBeta*(1.0 - 2.0*i))/np.tanh(xBeta))/2.0 for i in [(xi[j] + xi[j+1])/2 for j in range(len(xi) - 1)]]
-    yStag = [yLen*(1.0 - np.tanh(yBeta*(1.0 - 2.0*i))/np.tanh(yBeta))/2.0 for i in [(et[j] + et[j+1])/2 for j in range(len(et) - 1)]]
-    zStag = [zLen*(1.0 - np.tanh(zBeta*(1.0 - 2.0*i))/np.tanh(zBeta))/2.0 for i in [(zt[j] + zt[j+1])/2 for j in range(len(zt) - 1)]]
+    xColl = [xLen*(1.0 - np.tanh(xBeta*(1.0 - 2.0*i))/np.tanh(xBeta))/2.0 for i in [(xi[j] + xi[j+1])/2 for j in range(len(xi) - 1)]]
+    yColl = [yLen*(1.0 - np.tanh(yBeta*(1.0 - 2.0*i))/np.tanh(yBeta))/2.0 for i in [(et[j] + et[j+1])/2 for j in range(len(et) - 1)]]
+    zColl = [zLen*(1.0 - np.tanh(zBeta*(1.0 - 2.0*i))/np.tanh(zBeta))/2.0 for i in [(zt[j] + zt[j+1])/2 for j in range(len(zt) - 1)]]
 
 
 def calculateMetrics():

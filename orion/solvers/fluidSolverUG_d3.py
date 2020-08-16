@@ -137,30 +137,30 @@ def computeNLinDiff_X(U, V, W):
     global Hx
     global N, M, L
 
-    Hx[1:L, 1:M+1, 1:N+1] = ((fd.DDXi(U, L, M+1, N+1) + fd.DDEt(U, L, M+1, N+1) + fd.DDZt(U, L, M+1, N+1))*0.5/gv.Re -
-                              fd.D_Xi(U, L, M+1, N+1)*U[1:L, 1:M+1, 1:N+1] -
-                           0.25*(V[1:L, 0:M, 1:N+1] + V[1:L, 1:M+1, 1:N+1] + V[2:L+1, 1:M+1, 1:N+1] + V[2:L+1, 0:M, 1:N+1])*fd.D_Et(U, L, M+1, N+1) - 
-                           0.25*(W[1:L, 1:M+1, 0:N] + W[1:L, 1:M+1, 1:N+1] + W[2:L+1, 1:M+1, 1:N+1] + W[2:L+1, 1:M+1, 0:N])*fd.D_Zt(U, L, M+1, N+1))
+    Hx[1:L, 1:M+1, 1:N+1] = ((fd.DDXi(U) + fd.DDEt(U) + fd.DDZt(U))*0.5/gv.Re -
+                              fd.D_Xi(U)*U[1:L, 1:M+1, 1:N+1] -
+                           0.25*(V[1:L, 0:M, 1:N+1] + V[1:L, 1:M+1, 1:N+1] + V[2:L+1, 1:M+1, 1:N+1] + V[2:L+1, 0:M, 1:N+1])*fd.D_Et(U) - 
+                           0.25*(W[1:L, 1:M+1, 0:N] + W[1:L, 1:M+1, 1:N+1] + W[2:L+1, 1:M+1, 1:N+1] + W[2:L+1, 1:M+1, 0:N])*fd.D_Zt(U))
 
 
 def computeNLinDiff_Y(U, V, W):
     global Hy
     global N, M, L
 
-    Hy[1:L+1, 1:M, 1:N+1] = ((fd.DDXi(V, L+1, M, N+1) + fd.DDEt(V, L+1, M, N+1) + fd.DDZt(V, L+1, M, N+1))*0.5/gv.Re -
-                              fd.D_Et(V, L+1, M, N+1)*V[1:L+1, 1:M, 1:N+1] -
-                           0.25*(U[0:L, 1:M, 1:N+1] + U[1:L+1, 1:M, 1:N+1] + U[1:L+1, 2:M+1, 1:N+1] + U[0:L, 2:M+1, 1:N+1])*fd.D_Xi(V, L+1, M, N+1) -
-                           0.25*(W[1:L+1, 1:M, 0:N] + W[1:L+1, 1:M, 1:N+1] + W[1:L+1, 2:M+1, 1:N+1] + W[1:L+1, 2:M+1, 0:N])*fd.D_Zt(V, L+1, M, N+1))
+    Hy[1:L+1, 1:M, 1:N+1] = ((fd.DDXi(V) + fd.DDEt(V) + fd.DDZt(V))*0.5/gv.Re -
+                              fd.D_Et(V)*V[1:L+1, 1:M, 1:N+1] -
+                           0.25*(U[0:L, 1:M, 1:N+1] + U[1:L+1, 1:M, 1:N+1] + U[1:L+1, 2:M+1, 1:N+1] + U[0:L, 2:M+1, 1:N+1])*fd.D_Xi(V) -
+                           0.25*(W[1:L+1, 1:M, 0:N] + W[1:L+1, 1:M, 1:N+1] + W[1:L+1, 2:M+1, 1:N+1] + W[1:L+1, 2:M+1, 0:N])*fd.D_Zt(V))
 
 
 def computeNLinDiff_Z(U, V, W):
     global Hz
     global N, M, L
 
-    Hz[1:L+1, 1:M+1, 1:N] = ((fd.DDXi(W, L+1, M+1, N) + fd.DDEt(W, L+1, M+1, N) + fd.DDZt(W, L+1, M+1, N))*0.5/gv.Re -
-                              fd.D_Zt(W, L+1, M+1, N)*W[1:L+1, 1:M+1, 1:N] -
-                           0.25*(U[0:L, 1:M+1, 1:N] + U[1:L+1, 1:M+1, 1:N] + U[1:L+1, 1:M+1, 2:N+1] + U[0:L, 1:M+1, 2:N+1])*fd.D_Xi(W, L+1, M+1, N) -
-                           0.25*(V[1:L+1, 0:M, 1:N] + V[1:L+1, 1:M+1, 1:N] + V[1:L+1, 1:M+1, 2:N+1] + V[1:L+1, 0:M, 2:N+1])*fd.D_Et(W, L+1, M+1, N))
+    Hz[1:L+1, 1:M+1, 1:N] = ((fd.DDXi(W) + fd.DDEt(W) + fd.DDZt(W))*0.5/gv.Re -
+                              fd.D_Zt(W)*W[1:L+1, 1:M+1, 1:N] -
+                           0.25*(U[0:L, 1:M+1, 1:N] + U[1:L+1, 1:M+1, 1:N] + U[1:L+1, 1:M+1, 2:N+1] + U[0:L, 1:M+1, 2:N+1])*fd.D_Xi(W) -
+                           0.25*(V[1:L+1, 0:M, 1:N] + V[1:L+1, 1:M+1, 1:N] + V[1:L+1, 1:M+1, 2:N+1] + V[1:L+1, 0:M, 2:N+1])*fd.D_Et(W))
 
 
 #Jacobi iterative solver for U
@@ -293,9 +293,9 @@ OUTPUT: The maximum value of divergence in double precision
     for i in range(1, L):
         for j in range(1, M):
             for k in range(1, N):
-                divMat[i, j, k] = (U[i, j, k] - U[i-1, j, k])/(grid.xColl[i] - grid.xColl[i-1]) + \
-                                  (V[i, j, k] - V[i, j-1, k])/(grid.yColl[j] - grid.yColl[j-1]) + \
-                                  (W[i, j, k] - W[i, j, k-1])/(grid.zColl[k] - grid.zColl[k-1])
+                divMat[i, j, k] = (U[i, j, k] - U[i-1, j, k])/grid.hx + \
+                                  (V[i, j, k] - V[i, j-1, k])/grid.hy + \
+                                  (W[i, j, k] - W[i, j, k-1])/grid.hz
 
     return np.unravel_index(divMat.argmax(), divMat.shape), np.amax(divMat)
 

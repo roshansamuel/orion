@@ -103,15 +103,15 @@ def euler():
         Hx[:, :, :] += 1.0
 
     # Calculating guessed values of U implicitly
-    Hx[1:L, 1:M+1, 1:N+1] = U[1:L, 1:M+1, 1:N+1] + gv.dt*(Hx[1:L, 1:M+1, 1:N+1] - grid.xi_xColl[1:L, npax, npax]*(P[2:L+1, 1:M+1, 1:N+1] - P[1:L, 1:M+1, 1:N+1])/grid.hx)
+    Hx[1:L, 1:M+1, 1:N+1] = U[1:L, 1:M+1, 1:N+1] + gv.dt*(Hx[1:L, 1:M+1, 1:N+1] - grid.xi_xColl[:, npax, npax]*(P[2:L+1, 1:M+1, 1:N+1] - P[1:L, 1:M+1, 1:N+1])/grid.hx)
     Up = uJacobi(Hx)
 
     # Calculating guessed values of V implicitly
-    Hy[1:L+1, 1:M, 1:N+1] = V[1:L+1, 1:M, 1:N+1] + gv.dt*(Hy[1:L+1, 1:M, 1:N+1] - grid.et_yColl[1:M, npax]*(P[1:L+1, 2:M+1, 1:N+1] - P[1:L+1, 1:M, 1:N+1])/grid.hy)
+    Hy[1:L+1, 1:M, 1:N+1] = V[1:L+1, 1:M, 1:N+1] + gv.dt*(Hy[1:L+1, 1:M, 1:N+1] - grid.et_yColl[:, npax]*(P[1:L+1, 2:M+1, 1:N+1] - P[1:L+1, 1:M, 1:N+1])/grid.hy)
     Vp = vJacobi(Hy)
 
     # Calculating guessed values of W implicitly
-    Hz[1:L+1, 1:M+1, 1:N] = W[1:L+1, 1:M+1, 1:N] + gv.dt*(Hz[1:L+1, 1:M+1, 1:N] - grid.zt_zColl[1:N]*(P[1:L+1, 1:M+1, 2:N+1] - P[1:L+1, 1:M+1, 1:N])/grid.hz)
+    Hz[1:L+1, 1:M+1, 1:N] = W[1:L+1, 1:M+1, 1:N] + gv.dt*(Hz[1:L+1, 1:M+1, 1:N] - grid.zt_zColl[:]*(P[1:L+1, 1:M+1, 2:N+1] - P[1:L+1, 1:M+1, 1:N])/grid.hz)
     Wp = wJacobi(Hz)
 
     # Calculating pressure correction term
@@ -140,33 +140,33 @@ def computeNLinDiff_X(U, V, W):
     global Hx
     global N, M, L
 
-    Hx[1:L, 1:M+1, 1:N+1] = ((grid.xixxColl[1:L, npax, npax]*fd.D_Xi(U, L, M+1, N+1) + grid.etyyStag[0:M, npax]*fd.D_Et(U, L, M+1, N+1) + grid.ztzzStag[0:N]*fd.D_Zt(U, L, M+1, N+1))/gv.Re +
-                             (grid.xix2Coll[1:L, npax, npax]*fd.DDXi(U, L, M+1, N+1) + grid.ety2Stag[0:M, npax]*fd.DDEt(U, L, M+1, N+1) + grid.ztz2Stag[0:N]*fd.DDZt(U, L, M+1, N+1))*0.5/gv.Re -
-                              grid.xi_xColl[1:L, npax, npax]*fd.D_Xi(U, L, M+1, N+1)*U[1:L, 1:M+1, 1:N+1] -
-                      0.25*(V[1:L, 0:M, 1:N+1] + V[1:L, 1:M+1, 1:N+1] + V[2:L+1, 1:M+1, 1:N+1] + V[2:L+1, 0:M, 1:N+1])*grid.et_yStag[0:M, npax]*fd.D_Et(U, L, M+1, N+1) - 
-                      0.25*(W[1:L, 1:M+1, 0:N] + W[1:L, 1:M+1, 1:N+1] + W[2:L+1, 1:M+1, 1:N+1] + W[2:L+1, 1:M+1, 0:N])*grid.zt_zStag[0:N]*fd.D_Zt(U, L, M+1, N+1))
+    Hx[1:-1, 1:-1, 1:-1] = ((grid.xixxColl[:, npax, npax]*fd.D_Xi(U) + grid.etyyStag[:, npax]*fd.D_Et(U) + grid.ztzzStag[:]*fd.D_Zt(U))/gv.Re +
+                            (grid.xix2Coll[:, npax, npax]*fd.DDXi(U) + grid.ety2Stag[:, npax]*fd.DDEt(U) + grid.ztz2Stag[:]*fd.DDZt(U))*0.5/gv.Re -
+                             grid.xi_xColl[:, npax, npax]*fd.D_Xi(U)*U[1:-1, 1:-1, 1:-1] -
+                      0.25*(V[1:L, 0:M, 1:N+1] + V[1:L, 1:M+1, 1:N+1] + V[2:L+1, 1:M+1, 1:N+1] + V[2:L+1, 0:M, 1:N+1])*grid.et_yStag[:, npax]*fd.D_Et(U) - 
+                      0.25*(W[1:L, 1:M+1, 0:N] + W[1:L, 1:M+1, 1:N+1] + W[2:L+1, 1:M+1, 1:N+1] + W[2:L+1, 1:M+1, 0:N])*grid.zt_zStag[:]*fd.D_Zt(U))
 
 
 def computeNLinDiff_Y(U, V, W):
     global Hy
     global N, M, L
 
-    Hy[1:L+1, 1:M, 1:N+1] = ((grid.xixxStag[0:L, npax, npax]*fd.D_Xi(V, L+1, M, N+1) + grid.etyyColl[1:M, npax]*fd.D_Et(V, L+1, M, N+1) + grid.ztzzStag[0:N]*fd.D_Zt(V, L+1, M, N+1))/gv.Re +
-                             (grid.xix2Stag[0:L, npax, npax]*fd.DDXi(V, L+1, M, N+1) + grid.ety2Coll[1:M, npax]*fd.DDEt(V, L+1, M, N+1) + grid.ztz2Stag[0:N]*fd.DDZt(V, L+1, M, N+1))*0.5/gv.Re -
-                                                                                       grid.et_yColl[1:M, npax]*fd.D_Et(V, L+1, M, N+1)*V[1:L+1, 1:M, 1:N+1] -
-                      0.25*(U[0:L, 1:M, 1:N+1] + U[1:L+1, 1:M, 1:N+1] + U[1:L+1, 2:M+1, 1:N+1] + U[0:L, 2:M+1, 1:N+1])*grid.xi_xStag[0:L, npax, npax]*fd.D_Xi(V, L+1, M, N+1) -
-                      0.25*(W[1:L+1, 1:M, 0:N] + W[1:L+1, 1:M, 1:N+1] + W[1:L+1, 2:M+1, 1:N+1] + W[1:L+1, 2:M+1, 0:N])*grid.zt_zStag[0:N]*fd.D_Zt(V, L+1, M, N+1))
+    Hy[1:-1, 1:-1, 1:-1] = ((grid.xixxStag[:, npax, npax]*fd.D_Xi(V) + grid.etyyColl[:, npax]*fd.D_Et(V) + grid.ztzzStag[:]*fd.D_Zt(V))/gv.Re +
+                            (grid.xix2Stag[:, npax, npax]*fd.DDXi(V) + grid.ety2Coll[:, npax]*fd.DDEt(V) + grid.ztz2Stag[:]*fd.DDZt(V))*0.5/gv.Re -
+                                                                       grid.et_yColl[:, npax]*fd.D_Et(V)*V[1:-1, 1:-1, 1:-1] -
+                      0.25*(U[0:L, 1:M, 1:N+1] + U[1:L+1, 1:M, 1:N+1] + U[1:L+1, 2:M+1, 1:N+1] + U[0:L, 2:M+1, 1:N+1])*grid.xi_xStag[:, npax, npax]*fd.D_Xi(V) -
+                      0.25*(W[1:L+1, 1:M, 0:N] + W[1:L+1, 1:M, 1:N+1] + W[1:L+1, 2:M+1, 1:N+1] + W[1:L+1, 2:M+1, 0:N])*grid.zt_zStag[:]*fd.D_Zt(V))
 
 
 def computeNLinDiff_Z(U, V, W):
     global Hz
     global N, M, L
 
-    Hz[1:L+1, 1:M+1, 1:N] = ((grid.xixxStag[0:L, npax, npax]*fd.D_Xi(W, L+1, M+1, N) + grid.etyyStag[0:M, npax]*fd.D_Et(W, L+1, M+1, N) + grid.ztzzColl[1:N]*fd.D_Zt(W, L+1, M+1, N))/gv.Re +
-                             (grid.xix2Stag[0:L, npax, npax]*fd.DDXi(W, L+1, M+1, N) + grid.ety2Stag[0:M, npax]*fd.DDEt(W, L+1, M+1, N) + grid.ztz2Coll[1:N]*fd.DDZt(W, L+1, M+1, N))*0.5/gv.Re -
-                                                                                                                                          grid.zt_zColl[1:N]*fd.D_Zt(W, L+1, M+1, N)*W[1:L+1, 1:M+1, 1:N] -
-                      0.25*(U[0:L, 1:M+1, 1:N] + U[1:L+1, 1:M+1, 1:N] + U[1:L+1, 1:M+1, 2:N+1] + U[0:L, 1:M+1, 2:N+1])*grid.xi_xStag[0:L, npax, npax]*fd.D_Xi(W, L+1, M+1, N) -
-                      0.25*(V[1:L+1, 0:M, 1:N] + V[1:L+1, 1:M+1, 1:N] + V[1:L+1, 1:M+1, 2:N+1] + V[1:L+1, 0:M, 2:N+1])*grid.et_yStag[0:M, npax]*fd.D_Et(W, L+1, M+1, N))
+    Hz[1:-1, 1:-1, 1:-1] = ((grid.xixxStag[:, npax, npax]*fd.D_Xi(W) + grid.etyyStag[:, npax]*fd.D_Et(W) + grid.ztzzColl[:]*fd.D_Zt(W))/gv.Re +
+                            (grid.xix2Stag[:, npax, npax]*fd.DDXi(W) + grid.ety2Stag[:, npax]*fd.DDEt(W) + grid.ztz2Coll[:]*fd.DDZt(W))*0.5/gv.Re -
+                                                                                                           grid.zt_zColl[:]*fd.D_Zt(W)*W[1:-1, 1:-1, 1:-1] -
+                      0.25*(U[0:L, 1:M+1, 1:N] + U[1:L+1, 1:M+1, 1:N] + U[1:L+1, 1:M+1, 2:N+1] + U[0:L, 1:M+1, 2:N+1])*grid.xi_xStag[:, npax, npax]*fd.D_Xi(W) -
+                      0.25*(V[1:L+1, 0:M, 1:N] + V[1:L+1, 1:M+1, 1:N] + V[1:L+1, 1:M+1, 2:N+1] + V[1:L+1, 0:M, 2:N+1])*grid.et_yStag[:, npax]*fd.D_Et(W))
 
 
 #Jacobi iterative solver for U
