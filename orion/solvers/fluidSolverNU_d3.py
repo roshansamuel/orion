@@ -116,9 +116,9 @@ def euler():
 
     # Calculating pressure correction term
     rhs = np.zeros([L+1, M+1, N+1])
-    rhs[1:L+1, 1:M+1, 1:N+1] = ((Up[1:L+1, 1:M+1, 1:N+1] - Up[0:L, 1:M+1, 1:N+1])*grid.xi_xStag[0:L, npax, npax]/grid.hx +
-                                (Vp[1:L+1, 1:M+1, 1:N+1] - Vp[1:L+1, 0:M, 1:N+1])*grid.et_yStag[0:M, npax]/grid.hy +
-                                (Wp[1:L+1, 1:M+1, 1:N+1] - Wp[1:L+1, 1:M+1, 0:N])*grid.zt_zStag[0:N]/grid.hz)/gv.dt
+    rhs[1:L+1, 1:M+1, 1:N+1] = ((Up[1:L+1, 1:M+1, 1:N+1] - Up[0:L, 1:M+1, 1:N+1])*grid.xi_xStag[:, npax, npax]/grid.hx +
+                                (Vp[1:L+1, 1:M+1, 1:N+1] - Vp[1:L+1, 0:M, 1:N+1])*grid.et_yStag[:, npax]/grid.hy +
+                                (Wp[1:L+1, 1:M+1, 1:N+1] - Wp[1:L+1, 1:M+1, 0:N])*grid.zt_zStag[:]/grid.hz)/gv.dt
 
     Pp = ps.multigrid(rhs)
 
@@ -126,9 +126,9 @@ def euler():
     P = P + Pp
 
     # Update new values for U, V and W
-    U[1:L, 1:M+1, 1:N+1] = Up[1:L, 1:M+1, 1:N+1] - gv.dt*(Pp[2:L+1, 1:M+1, 1:N+1] - Pp[1:L, 1:M+1, 1:N+1])*grid.xi_xColl[1:L, npax, npax]/grid.hx
-    V[1:L+1, 1:M, 1:N+1] = Vp[1:L+1, 1:M, 1:N+1] - gv.dt*(Pp[1:L+1, 2:M+1, 1:N+1] - Pp[1:L+1, 1:M, 1:N+1])*grid.et_yColl[1:M, npax]/grid.hy
-    W[1:L+1, 1:M+1, 1:N] = Wp[1:L+1, 1:M+1, 1:N] - gv.dt*(Pp[1:L+1, 1:M+1, 2:N+1] - Pp[1:L+1, 1:M+1, 1:N])*grid.zt_zColl[1:N]/grid.hz
+    U[1:L, 1:M+1, 1:N+1] = Up[1:L, 1:M+1, 1:N+1] - gv.dt*(Pp[2:L+1, 1:M+1, 1:N+1] - Pp[1:L, 1:M+1, 1:N+1])*grid.xi_xColl[:, npax, npax]/grid.hx
+    V[1:L+1, 1:M, 1:N+1] = Vp[1:L+1, 1:M, 1:N+1] - gv.dt*(Pp[1:L+1, 2:M+1, 1:N+1] - Pp[1:L+1, 1:M, 1:N+1])*grid.et_yColl[:, npax]/grid.hy
+    W[1:L+1, 1:M+1, 1:N] = Wp[1:L+1, 1:M+1, 1:N] - gv.dt*(Pp[1:L+1, 1:M+1, 2:N+1] - Pp[1:L+1, 1:M+1, 1:N])*grid.zt_zColl[:]/grid.hz
 
     # Impose no-slip BC on new values of U, V and W
     U = bc.imposeUBCs(U)
@@ -179,22 +179,22 @@ def uJacobi(rho):
     jCnt = 0
 
     while True:
-        next_sol[1:L, 2:M, 2:N] = ((grid.hy2hz2*(prev_sol[0:L-1, 2:M, 2:N] + prev_sol[2:L+1, 2:M, 2:N])*grid.xix2Coll[1:L, npax, npax] +
-                                    grid.hz2hx2*(prev_sol[1:L, 1:M-1, 2:N] + prev_sol[1:L, 3:M+1, 2:N])*grid.ety2Stag[1:M-1, npax] +
-                                    grid.hx2hy2*(prev_sol[1:L, 2:M, 1:N-1] + prev_sol[1:L, 2:M, 3:N+1])*grid.ztz2Stag[1:N-1])*
+        next_sol[1:L, 2:M, 2:N] = ((grid.hy2hz2*(prev_sol[0:L-1, 2:M, 2:N] + prev_sol[2:L+1, 2:M, 2:N])*grid.xix2Coll[:, npax, npax] +
+                                    grid.hz2hx2*(prev_sol[1:L, 1:M-1, 2:N] + prev_sol[1:L, 3:M+1, 2:N])*grid.ety2Stag[1:-1, npax] +
+                                    grid.hx2hy2*(prev_sol[1:L, 2:M, 1:N-1] + prev_sol[1:L, 2:M, 3:N+1])*grid.ztz2Stag[1:-1])*
                                        gv.dt/(grid.hx2hy2hz2*2.0*gv.Re) + rho[1:L, 2:M, 2:N])/ \
-                                (1.0 + gv.dt*(grid.hy2hz2*grid.xix2Coll[1:L, npax, npax] +
-                                              grid.hz2hx2*grid.ety2Stag[1:M-1, npax] +
-                                              grid.hx2hy2*grid.ztz2Stag[1:N-1])/(gv.Re*grid.hx2hy2hz2))
+                                (1.0 + gv.dt*(grid.hy2hz2*grid.xix2Coll[:, npax, npax] +
+                                              grid.hz2hx2*grid.ety2Stag[1:-1, npax] +
+                                              grid.hx2hy2*grid.ztz2Stag[1:-1])/(gv.Re*grid.hx2hy2hz2))
 
         # IMPOSE BOUNDARY CONDITION AND COPY TO PREVIOUS SOLUTION ARRAY
         next_sol = bc.imposeUBCs(next_sol)
         prev_sol = np.copy(next_sol)
 
         test_sol[1:L, 2:M, 2:N] = next_sol[1:L, 2:M, 2:N] - 0.5*gv.dt*(
-                                 (next_sol[0:L-1, 2:M, 2:N] - 2.0*next_sol[1:L, 2:M, 2:N] + next_sol[2:L+1, 2:M, 2:N])*grid.xix2Coll[1:L, npax, npax]/grid.hx2 +
-                                 (next_sol[1:L, 1:M-1, 2:N] - 2.0*next_sol[1:L, 2:M, 2:N] + next_sol[1:L, 3:M+1, 2:N])*grid.ety2Stag[1:M-1, npax]/grid.hy2 +
-                                 (next_sol[1:L, 2:M, 1:N-1] - 2.0*next_sol[1:L, 2:M, 2:N] + next_sol[1:L, 2:M, 3:N+1])*grid.ztz2Stag[1:N-1]/grid.hz2)/gv.Re
+                                 (next_sol[0:L-1, 2:M, 2:N] - 2.0*next_sol[1:L, 2:M, 2:N] + next_sol[2:L+1, 2:M, 2:N])*grid.xix2Coll[:, npax, npax]/grid.hx2 +
+                                 (next_sol[1:L, 1:M-1, 2:N] - 2.0*next_sol[1:L, 2:M, 2:N] + next_sol[1:L, 3:M+1, 2:N])*grid.ety2Stag[1:-1, npax]/grid.hy2 +
+                                 (next_sol[1:L, 2:M, 1:N-1] - 2.0*next_sol[1:L, 2:M, 2:N] + next_sol[1:L, 2:M, 3:N+1])*grid.ztz2Stag[1:-1]/grid.hz2)/gv.Re
 
         error_temp = np.fabs(rho[1:L, 2:M, 2:N] - test_sol[1:L, 2:M, 2:N])
         maxErr = np.amax(error_temp)
@@ -220,22 +220,22 @@ def vJacobi(rho):
     jCnt = 0
 
     while True:
-        next_sol[2:L, 1:M, 2:N] = ((grid.hy2hz2*(prev_sol[1:L-1, 1:M, 2:N] + prev_sol[3:L+1, 1:M, 2:N])*grid.xix2Stag[1:L-1, npax, npax] +
-                                    grid.hz2hx2*(prev_sol[2:L, 0:M-1, 2:N] + prev_sol[2:L, 2:M+1, 2:N])*grid.ety2Coll[1:M, npax] +
-                                    grid.hx2hy2*(prev_sol[2:L, 1:M, 1:N-1] + prev_sol[2:L, 1:M, 3:N+1])*grid.ztz2Stag[1:N-1])*
+        next_sol[2:L, 1:M, 2:N] = ((grid.hy2hz2*(prev_sol[1:L-1, 1:M, 2:N] + prev_sol[3:L+1, 1:M, 2:N])*grid.xix2Stag[1:-1, npax, npax] +
+                                    grid.hz2hx2*(prev_sol[2:L, 0:M-1, 2:N] + prev_sol[2:L, 2:M+1, 2:N])*grid.ety2Coll[:, npax] +
+                                    grid.hx2hy2*(prev_sol[2:L, 1:M, 1:N-1] + prev_sol[2:L, 1:M, 3:N+1])*grid.ztz2Stag[1:-1])*
                                        gv.dt/(grid.hx2hy2hz2*2.0*gv.Re) + rho[2:L, 1:M, 2:N])/ \
-                                (1.0 + gv.dt*(grid.hy2hz2*grid.xix2Stag[1:L-1, npax, npax] +
-                                              grid.hz2hx2*grid.ety2Coll[1:M, npax] +
-                                              grid.hx2hy2*grid.ztz2Stag[1:N-1])/(gv.Re*grid.hx2hy2hz2))
+                                (1.0 + gv.dt*(grid.hy2hz2*grid.xix2Stag[1:-1, npax, npax] +
+                                              grid.hz2hx2*grid.ety2Coll[:, npax] +
+                                              grid.hx2hy2*grid.ztz2Stag[1:-1])/(gv.Re*grid.hx2hy2hz2))
 
         # IMPOSE BOUNDARY CONDITION AND COPY TO PREVIOUS SOLUTION ARRAY
         next_sol = bc.imposeVBCs(next_sol)
         prev_sol = np.copy(next_sol)
 
         test_sol[2:L, 1:M, 2:N] = next_sol[2:L, 1:M, 2:N] - 0.5*gv.dt*(
-                                 (next_sol[1:L-1, 1:M, 2:N] - 2.0*next_sol[2:L, 1:M, 2:N] + next_sol[3:L+1, 1:M, 2:N])*grid.xix2Stag[1:L-1, npax, npax]/grid.hx2 +
-                                 (next_sol[2:L, 0:M-1, 2:N] - 2.0*next_sol[2:L, 1:M, 2:N] + next_sol[2:L, 2:M+1, 2:N])*grid.ety2Coll[1:M, npax]/grid.hy2 +
-                                 (next_sol[2:L, 1:M, 1:N-1] - 2.0*next_sol[2:L, 1:M, 2:N] + next_sol[2:L, 1:M, 3:N+1])*grid.ztz2Stag[1:N-1]/grid.hz2)/gv.Re
+                                 (next_sol[1:L-1, 1:M, 2:N] - 2.0*next_sol[2:L, 1:M, 2:N] + next_sol[3:L+1, 1:M, 2:N])*grid.xix2Stag[1:-1, npax, npax]/grid.hx2 +
+                                 (next_sol[2:L, 0:M-1, 2:N] - 2.0*next_sol[2:L, 1:M, 2:N] + next_sol[2:L, 2:M+1, 2:N])*grid.ety2Coll[:, npax]/grid.hy2 +
+                                 (next_sol[2:L, 1:M, 1:N-1] - 2.0*next_sol[2:L, 1:M, 2:N] + next_sol[2:L, 1:M, 3:N+1])*grid.ztz2Stag[1:-1]/grid.hz2)/gv.Re
 
         error_temp = np.fabs(rho[2:L, 1:M, 2:N] - test_sol[2:L, 1:M, 2:N])
         maxErr = np.amax(error_temp)
@@ -261,22 +261,22 @@ def wJacobi(rho):
     jCnt = 0
 
     while True:
-        next_sol[2:L, 2:M, 1:N] = ((grid.hy2hz2*(prev_sol[1:L-1, 2:M, 1:N] + prev_sol[3:L+1, 2:M, 1:N])*grid.xix2Stag[0:L-1, npax, npax] +
-                                    grid.hz2hx2*(prev_sol[2:L, 1:M-1, 1:N] + prev_sol[2:L, 3:M+1, 1:N])*grid.ety2Stag[0:M-1, npax] +
-                                    grid.hx2hy2*(prev_sol[2:L, 2:M, 0:N-1] + prev_sol[2:L, 2:M, 2:N+1])*grid.ztz2Coll[1:N])*
+        next_sol[2:L, 2:M, 1:N] = ((grid.hy2hz2*(prev_sol[1:L-1, 2:M, 1:N] + prev_sol[3:L+1, 2:M, 1:N])*grid.xix2Stag[1:-1, npax, npax] +
+                                    grid.hz2hx2*(prev_sol[2:L, 1:M-1, 1:N] + prev_sol[2:L, 3:M+1, 1:N])*grid.ety2Stag[1:-1, npax] +
+                                    grid.hx2hy2*(prev_sol[2:L, 2:M, 0:N-1] + prev_sol[2:L, 2:M, 2:N+1])*grid.ztz2Coll[:])*
                                        gv.dt/(grid.hx2hy2hz2*2.0*gv.Re) + rho[2:L, 2:M, 1:N])/ \
-                                (1.0 + gv.dt*(grid.hy2hz2*grid.xix2Stag[0:L-1, npax, npax] +
-                                              grid.hz2hx2*grid.ety2Stag[0:M-1, npax] +
-                                              grid.hx2hy2*grid.ztz2Coll[1:N])/(gv.Re*grid.hx2hy2hz2))
+                                (1.0 + gv.dt*(grid.hy2hz2*grid.xix2Stag[1:-1, npax, npax] +
+                                              grid.hz2hx2*grid.ety2Stag[1:-1, npax] +
+                                              grid.hx2hy2*grid.ztz2Coll[:])/(gv.Re*grid.hx2hy2hz2))
 
         # IMPOSE BOUNDARY CONDITION AND COPY TO PREVIOUS SOLUTION ARRAY
         next_sol = bc.imposeWBCs(next_sol)
         prev_sol = np.copy(next_sol)
 
         test_sol[2:L, 2:M, 1:N] = next_sol[2:L, 2:M, 1:N] - 0.5*gv.dt*(
-                                 (next_sol[1:L-1, 2:M, 1:N] - 2.0*next_sol[2:L, 2:M, 1:N] + next_sol[3:L+1, 2:M, 1:N])*grid.xix2Stag[0:L-1, npax, npax]/grid.hx2 +
-                                 (next_sol[2:L, 1:M-1, 1:N] - 2.0*next_sol[2:L, 2:M, 1:N] + next_sol[2:L, 3:M+1, 1:N])*grid.ety2Stag[0:M-1, npax]/grid.hy2 +
-                                 (next_sol[2:L, 2:M, 0:N-1] - 2.0*next_sol[2:L, 2:M, 1:N] + next_sol[2:L, 2:M, 2:N+1])*grid.ztz2Coll[1:N-1]/grid.hz2)/gv.Re
+                                 (next_sol[1:L-1, 2:M, 1:N] - 2.0*next_sol[2:L, 2:M, 1:N] + next_sol[3:L+1, 2:M, 1:N])*grid.xix2Stag[1:-1, npax, npax]/grid.hx2 +
+                                 (next_sol[2:L, 1:M-1, 1:N] - 2.0*next_sol[2:L, 2:M, 1:N] + next_sol[2:L, 3:M+1, 1:N])*grid.ety2Stag[1:-1, npax]/grid.hy2 +
+                                 (next_sol[2:L, 2:M, 0:N-1] - 2.0*next_sol[2:L, 2:M, 1:N] + next_sol[2:L, 2:M, 2:N+1])*grid.ztz2Coll[:]/grid.hz2)/gv.Re
 
         error_temp = np.fabs(rho[2:L, 2:M, 1:N] - test_sol[2:L, 2:M, 1:N])
         maxErr = np.amax(error_temp)
