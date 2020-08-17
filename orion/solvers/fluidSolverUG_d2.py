@@ -216,11 +216,6 @@ def wJacobi(rho):
 
 
 def getDiv():
-    '''
-Function to calculate the divergence within the domain (excluding walls)
-INPUT:  U, W: Velocity values
-OUTPUT: The maximum value of divergence in double precision
-    '''
     global N, L
     global U, W
 

@@ -32,7 +32,6 @@
 ####################################################################################################
 
 # Import all necessary modules
-from orion import calculateFD as fd
 from orion import meshData as grid
 from orion import globalVars as gv
 import numpy as np

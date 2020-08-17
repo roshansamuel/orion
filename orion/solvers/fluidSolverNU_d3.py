@@ -79,7 +79,7 @@ def initFields():
         # Initial condition for forced channel flow
         U[:, :, :] = 1.0
 
-    #ps.initVariables()
+    ps.initVariables()
 
     if gv.testPoisson:
         ps.initDirichlet()
@@ -115,7 +115,7 @@ def euler():
     Wp = wJacobi(Hz)
 
     # Calculating pressure correction term
-    rhs = np.zeros([L+1, M+1, N+1])
+    rhs = np.zeros([L+2, M+2, N+2])
     rhs[1:L+1, 1:M+1, 1:N+1] = ((Up[1:L+1, 1:M+1, 1:N+1] - Up[0:L, 1:M+1, 1:N+1])*grid.xi_xStag[:, npax, npax]/grid.hx +
                                 (Vp[1:L+1, 1:M+1, 1:N+1] - Vp[1:L+1, 0:M, 1:N+1])*grid.et_yStag[:, npax]/grid.hy +
                                 (Wp[1:L+1, 1:M+1, 1:N+1] - Wp[1:L+1, 1:M+1, 0:N])*grid.zt_zStag[:]/grid.hz)/gv.dt
@@ -134,6 +134,8 @@ def euler():
     U = bc.imposeUBCs(U)
     V = bc.imposeVBCs(V)
     W = bc.imposeWBCs(W)
+
+    #print(U[30, 30, 30], V[30, 30, 30], W[30, 30, 30])
 
 
 def computeNLinDiff_X(U, V, W):
@@ -293,21 +295,17 @@ def wJacobi(rho):
 
 
 def getDiv():
-    '''
-Function to calculate the divergence within the domain (excluding walls)
-INPUT:  U, V, W: Velocity values
-OUTPUT: The maximum value of divergence in double precision
-    '''
     global N, M, L
     global U, V, W
 
     divMat = np.zeros([L, M, N])
-    for i in range(1, L):
-        for j in range(1, M):
-            for k in range(1, N):
-                divMat[i, j, k] = (U[i, j, k] - U[i-1, j, k])/(grid.xColl[i] - grid.xColl[i-1]) + \
-                                  (V[i, j, k] - V[i, j-1, k])/(grid.yColl[j] - grid.yColl[j-1]) + \
-                                  (W[i, j, k] - W[i, j, k-1])/(grid.zColl[k] - grid.zColl[k-1])
+    # This excludes the velocity difference across the wall. Hence limits start from 2
+    for i in range(2, L):
+        for j in range(2, M):
+            for k in range(2, N):
+                divMat[i, j, k] = (U[i, j, k] - U[i-1, j, k])/(grid.xColl[i-1] - grid.xColl[i-2]) + \
+                                  (V[i, j, k] - V[i, j-1, k])/(grid.yColl[j-1] - grid.yColl[j-2]) + \
+                                  (W[i, j, k] - W[i, j, k-1])/(grid.zColl[k-1] - grid.zColl[k-2])
 
     return np.unravel_index(divMat.argmax(), divMat.shape), np.amax(divMat)
 
