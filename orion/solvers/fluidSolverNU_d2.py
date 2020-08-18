@@ -32,7 +32,7 @@
 ####################################################################################################
 
 # Import all necessary modules
-from orion.solvers import poissonSolverUG_d2 as ps
+from orion.solvers import poissonSolverNU_d2 as ps
 from orion import boundaryConditions as bc
 from orion import calculateFD as fd
 from orion import meshData as grid
@@ -42,6 +42,9 @@ from orion import writeData as dw
 import numpy as np
 import time
 
+# Redefine frequently used numpy object
+npax = np.newaxis
+
 # Get limits from grid object
 L, N = grid.L, grid.N
 
@@ -50,7 +53,7 @@ def initFields():
     global Hx, Hz
     global U, W, P
 
-    # Create and initialize U, W and P arrays
+    # Create and initialize U, V, W and P arrays
     # The arrays have two extra points
     # These act as ghost points on either sides of the domain
     P = np.ones([L + 2, N + 2])
@@ -69,7 +72,7 @@ def initFields():
         # For moving top lid, U = 1.0 on lid, and second last point lies on the wall
         U[:, -2] = 1.0
     elif gv.probType == 1:
-        # Initial condition for channel flow
+        # Initial condition for forced channel flow
         U[:, :] = 1.0
 
     ps.initVariables()
@@ -94,27 +97,28 @@ def euler():
         Hx[:, :] += 1.0
 
     # Calculating guessed values of U implicitly
-    Hx[1:L, 1:N+1] = U[1:L, 1:N+1] + gv.dt*(Hx[1:L, 1:N+1] - (P[2:L+1, 1:N+1] - P[1:L, 1:N+1])/grid.hx)
+    Hx[1:L, 1:N+1] = U[1:L, 1:N+1] + gv.dt*(Hx[1:L, 1:N+1] - grid.xi_xColl[:, npax]*(P[2:L+1, 1:N+1] - P[1:L, 1:N+1])/grid.hx)
     Up = uJacobi(Hx)
 
     # Calculating guessed values of W implicitly
-    Hz[1:L+1, 1:N] = W[1:L+1, 1:N] + gv.dt*(Hz[1:L+1, 1:N] - (P[1:L+1, 2:N+1] - P[1:L+1, 1:N])/grid.hz)
+    Hz[1:L+1, 1:N] = W[1:L+1, 1:N] + gv.dt*(Hz[1:L+1, 1:N] - grid.zt_zColl[:]*(P[1:L+1, 2:N+1] - P[1:L+1, 1:N])/grid.hz)
     Wp = wJacobi(Hz)
 
     # Calculating pressure correction term
     rhs = np.zeros([L+2, N+2])
-    rhs[1:L+1, 1:N+1] = ((Up[1:L+1, 1:N+1] - Up[0:L, 1:N+1])/grid.hx +
-                         (Wp[1:L+1, 1:N+1] - Wp[1:L+1, 0:N])/grid.hz)/gv.dt
+    rhs[1:L+1, 1:N+1] = ((Up[1:L+1, 1:N+1] - Up[0:L, 1:N+1])*grid.xi_xStag[:, npax]/grid.hx +
+                         (Wp[1:L+1, 1:N+1] - Wp[1:L+1, 0:N])*grid.zt_zStag[:]/grid.hz)/gv.dt
+
     Pp = ps.multigrid(rhs)
 
     # Add pressure correction.
     P = P + Pp
 
-    # Update new values for U and W
-    U[1:L, 1:N+1] = Up[1:L, 1:N+1] - gv.dt*(Pp[2:L+1, 1:N+1] - Pp[1:L, 1:N+1])/grid.hx
-    W[1:L+1, 1:N] = Wp[1:L+1, 1:N] - gv.dt*(Pp[1:L+1, 2:N+1] - Pp[1:L+1, 1:N])/grid.hz
+    # Update new values for U, V and W
+    U[1:L, 1:N+1] = Up[1:L, 1:N+1] - gv.dt*(Pp[2:L+1, 1:N+1] - Pp[1:L, 1:N+1])*grid.xi_xColl[:, npax]/grid.hx
+    W[1:L+1, 1:N] = Wp[1:L+1, 1:N] - gv.dt*(Pp[1:L+1, 2:N+1] - Pp[1:L+1, 1:N])*grid.zt_zColl[:]/grid.hz
 
-    # Impose no-slip BC on new values of U and W
+    # Impose no-slip BC on new values of U, V and W
     U = bc.imposeUBCs(U)
     W = bc.imposeWBCs(W)
 
@@ -123,18 +127,20 @@ def computeNLinDiff_X(U, W):
     global Hx
     global N, L
 
-    Hx[1:L, 1:N+1] = ((fd.DDXi(U) + fd.DDZt(U))*0.5/gv.Re -
-                       fd.D_Xi(U)*U[1:L, 1:N+1] -
-                      0.25*(W[1:L, 0:N] + W[1:L, 1:N+1] + W[2:L+1, 1:N+1] + W[2:L+1, 0:N])*fd.D_Zt(U))
+    Hx[1:-1, 1:-1] = ((grid.xixxColl[:, npax]*fd.D_Xi(U) + grid.ztzzStag[:]*fd.D_Zt(U))/gv.Re +
+                      (grid.xix2Coll[:, npax]*fd.DDXi(U) + grid.ztz2Stag[:]*fd.DDZt(U))*0.5/gv.Re -
+                       grid.xi_xColl[:, npax]*fd.D_Xi(U)*U[1:-1, 1:-1] -
+                      0.25*(W[1:L, 0:N] + W[1:L, 1:N+1] + W[2:L+1, 1:N+1] + W[2:L+1, 0:N])*grid.zt_zStag[:]*fd.D_Zt(U))
 
 
 def computeNLinDiff_Z(U, W):
     global Hz
     global N, L
 
-    Hz[1:L+1, 1:N] = ((fd.DDXi(W) + fd.DDZt(W))*0.5/gv.Re -
-                       fd.D_Zt(W)*W[1:L+1, 1:N] -
-                      0.25*(U[0:L, 1:N] + U[1:L+1, 1:N] + U[1:L+1, 2:N+1] + U[0:L, 2:N+1])*fd.D_Xi(W))
+    Hz[1:-1, 1:-1] = ((grid.xixxStag[:, npax]*fd.D_Xi(W) + grid.ztzzColl[:]*fd.D_Zt(W))/gv.Re +
+                      (grid.xix2Stag[:, npax]*fd.DDXi(W) + grid.ztz2Coll[:]*fd.DDZt(W))*0.5/gv.Re -
+                                                                 grid.zt_zColl[:]*fd.D_Zt(W)*W[1:-1, 1:-1] -
+                      0.25*(U[0:L, 1:N] + U[1:L+1, 1:N] + U[1:L+1, 2:N+1] + U[0:L, 2:N+1])*grid.xi_xStag[:, npax]*fd.D_Xi(W))
 
 
 #Jacobi iterative solver for U
@@ -147,18 +153,18 @@ def uJacobi(rho):
     jCnt = 0
 
     while True:
-        next_sol[1:L, 2:N] = ((grid.hz2*(prev_sol[0:L-1, 2:N] + prev_sol[2:L+1, 2:N]) +
-                               grid.hx2*(prev_sol[1:L, 1:N-1] + prev_sol[1:L, 3:N+1]))*
-                                       gv.dt/(grid.hz2hx2*2.0*gv.Re) + rho[1:L, 2:N])/ \
-                                (1.0 + gv.dt*(grid.hz2 + grid.hx2)/(gv.Re*grid.hz2hx2))
+        next_sol[1:L, 2:N] = ((grid.hz2*(prev_sol[0:L-1, 2:N] + prev_sol[2:L+1, 2:N])*grid.xix2Coll[:, npax] +
+                               grid.hx2*(prev_sol[1:L, 1:N-1] + prev_sol[1:L, 3:N+1])*grid.ztz2Stag[1:-1])*
+                        gv.dt/(grid.hz2hx2*2.0*gv.Re) + rho[1:L, 2:N]) / \
+                 (1.0 + gv.dt*(grid.hz2*grid.xix2Coll[:, npax] + grid.hx2*grid.ztz2Stag[1:-1])/(gv.Re*grid.hz2hx2))
 
         # IMPOSE BOUNDARY CONDITION AND COPY TO PREVIOUS SOLUTION ARRAY
         next_sol = bc.imposeUBCs(next_sol)
         prev_sol = np.copy(next_sol)
 
         test_sol[1:L, 2:N] = next_sol[1:L, 2:N] - 0.5*gv.dt*(
-                            (next_sol[0:L-1, 2:N] - 2.0*next_sol[1:L, 2:N] + next_sol[2:L+1, 2:N])/grid.hx2 +
-                            (next_sol[1:L, 1:N-1] - 2.0*next_sol[1:L, 2:N] + next_sol[1:L, 3:N+1])/grid.hz2)/gv.Re
+                            (next_sol[0:L-1, 2:N] - 2.0*next_sol[1:L, 2:N] + next_sol[2:L+1, 2:N])*grid.xix2Coll[:, npax]/grid.hx2 +
+                            (next_sol[1:L, 1:N-1] - 2.0*next_sol[1:L, 2:N] + next_sol[1:L, 3:N+1])*grid.ztz2Stag[1:-1]/grid.hz2)/gv.Re
 
         error_temp = np.fabs(rho[1:L, 2:N] - test_sol[1:L, 2:N])
         maxErr = np.amax(error_temp)
@@ -184,18 +190,18 @@ def wJacobi(rho):
     jCnt = 0
 
     while True:
-        next_sol[2:L, 1:N] = ((grid.hz2*(prev_sol[1:L-1, 1:N] + prev_sol[3:L+1, 1:N]) +
-                               grid.hx2*(prev_sol[2:L, 0:N-1] + prev_sol[2:L, 2:N+1]))*
-                                       gv.dt/(grid.hz2hx2*2.0*gv.Re) + rho[2:L, 1:N])/ \
-                                (1.0 + gv.dt*(grid.hz2 + grid.hx2)/(gv.Re*grid.hz2hx2))
+        next_sol[2:L, 1:N] = ((grid.hz2*(prev_sol[1:L-1, 1:N] + prev_sol[3:L+1, 1:N])*grid.xix2Stag[1:-1, npax] +
+                               grid.hx2*(prev_sol[2:L, 0:N-1] + prev_sol[2:L, 2:N+1])*grid.ztz2Coll[:])*
+                        gv.dt/(grid.hz2hx2*2.0*gv.Re) + rho[2:L, 1:N]) / \
+                 (1.0 + gv.dt*(grid.hz2*grid.xix2Stag[1:-1, npax] + grid.hx2*grid.ztz2Coll[:])/(gv.Re*grid.hz2hx2))
 
         # IMPOSE BOUNDARY CONDITION AND COPY TO PREVIOUS SOLUTION ARRAY
         next_sol = bc.imposeWBCs(next_sol)
         prev_sol = np.copy(next_sol)
 
         test_sol[2:L, 1:N] = next_sol[2:L, 1:N] - 0.5*gv.dt*(
-                            (next_sol[1:L-1, 1:N] - 2.0*next_sol[2:L, 1:N] + next_sol[3:L+1, 1:N])/grid.hx2 +
-                            (next_sol[2:L, 0:N-1] - 2.0*next_sol[2:L, 1:N] + next_sol[2:L, 2:N+1])/grid.hz2)/gv.Re
+                            (next_sol[1:L-1, 1:N] - 2.0*next_sol[2:L, 1:N] + next_sol[3:L+1, 1:N])*grid.xix2Stag[1:-1, npax]/grid.hx2 +
+                            (next_sol[2:L, 0:N-1] - 2.0*next_sol[2:L, 1:N] + next_sol[2:L, 2:N+1])*grid.ztz2Coll[:]/grid.hz2)/gv.Re
 
         error_temp = np.fabs(rho[2:L, 1:N] - test_sol[2:L, 1:N])
         maxErr = np.amax(error_temp)
@@ -216,9 +222,11 @@ def getDiv():
     global U, W
 
     divMat = np.zeros([L, N])
-    for i in range(1, L):
-        for k in range(1, N):
-            divMat[i, k] = (U[i, k] - U[i-1, k])/grid.hx + (W[i, k] - W[i, k-1])/grid.hz
+    # This excludes the velocity difference across the wall. Hence limits start from 2
+    for i in range(2, L):
+        for k in range(2, N):
+            divMat[i, k] = (U[i, k] - U[i-1, k])/(grid.xColl[i-1] - grid.xColl[i-2]) + \
+                           (W[i, k] - W[i, k-1])/(grid.zColl[k-1] - grid.zColl[k-2])
 
     return np.unravel_index(divMat.argmax(), divMat.shape), np.amax(divMat)
 

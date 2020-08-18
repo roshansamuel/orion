@@ -55,7 +55,7 @@ sInd = np.array([5, 5, 5])
 dLen = [1.0, 1.0, 1.0]
 
 # Turn below flag on when using uniform grid
-uniformGrid = False
+uniformGrid = True
 
 # If above flag is True, set tangent-hyperbolic stretching factors along X, Y and Z directions respectively
 beta = [1.0, 1.0, 1.0]

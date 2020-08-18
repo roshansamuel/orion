@@ -329,12 +329,11 @@ def laplace(function):
 
     n = N[vLev]
 
-    gradient = np.zeros(n)
-    gradient = ((function[:n[0], 1:-1, 1:-1] - 2.0*function[1:n[0]+1, 1:-1, 1:-1] + function[2:, 1:-1, 1:-1])/hx2[vLev] + 
-                (function[1:-1, :n[1], 1:-1] - 2.0*function[1:-1, 1:n[1]+1, 1:-1] + function[1:-1, 2:, 1:-1])/hy2[vLev] +
-                (function[1:-1, 1:-1, :n[2]] - 2.0*function[1:-1, 1:-1, 1:n[2]+1] + function[1:-1, 1:-1, 2:])/hz2[vLev])
+    laplacian = ((function[:n[0], 1:-1, 1:-1] - 2.0*function[1:n[0]+1, 1:-1, 1:-1] + function[2:, 1:-1, 1:-1])/hx2[vLev] + 
+                 (function[1:-1, :n[1], 1:-1] - 2.0*function[1:-1, 1:n[1]+1, 1:-1] + function[1:-1, 2:, 1:-1])/hy2[vLev] +
+                 (function[1:-1, 1:-1, :n[2]] - 2.0*function[1:-1, 1:-1, 1:n[2]+1] + function[1:-1, 1:-1, 2:])/hz2[vLev])
 
-    return gradient
+    return laplacian
 
 
 # Initialize the arrays used in MG algorithm
@@ -344,11 +343,11 @@ def initVariables():
 
     nList = np.array(N)
 
-    rData = np.array([np.zeros(tuple(x)) for x in nList])
-    pData = np.array([np.zeros(tuple(x)) for x in nList + 2])
+    rData = [np.zeros(tuple(x)) for x in nList]
+    pData = [np.zeros(tuple(x)) for x in nList + 2]
 
-    sData = np.array([np.zeros_like(x) for x in pData])
-    iTemp = np.array([np.zeros_like(x) for x in pData])
+    sData = [np.zeros_like(x) for x in pData]
+    iTemp = [np.zeros_like(x) for x in pData]
 
 
 ############################## BOUNDARY CONDITION ###############################

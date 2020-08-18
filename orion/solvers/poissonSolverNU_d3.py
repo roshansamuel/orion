@@ -169,6 +169,7 @@ def smooth(sCount):
     global vLev
     global rData, pData
     global hyhz, hzhx, hxhy, hxhyhz
+    global xix2, xixx, ety2, etyy, ztz2, ztzz
 
     n = N[vLev]
     for iCnt in range(sCount):
@@ -178,7 +179,6 @@ def smooth(sCount):
         for i in range(1, n[0]+1):
             for j in range(1, n[1]+1):
                 for k in range(1, n[2]+1):
-                    # Warning xixx, xix2, etyy and ety2 dimensions may mismatch with indexing - Check
                     pData[vLev][i, j, k] = (
                         hyhz[vLev]*xix2[vLev][i-1]*(pData[vLev][i+1, j, k] + pData[vLev][i-1, j, k])*2.0 +
                         hyhz[vLev]*xixx[vLev][i-1]*(pData[vLev][i+1, j, k] - pData[vLev][i-1, j, k])*hx[vLev] +
@@ -242,6 +242,7 @@ def solve():
     global maxCount
     global pData, rData
     global hyhz, hzhx, hxhy, hxhyhz
+    global xix2, xixx, ety2, etyy, ztz2, ztzz
 
     n = N[vLev]
     solLap = np.zeros(n)
@@ -331,13 +332,12 @@ def prolong():
                                                     pData[pLev][i2, j2, k2 - 1] + pData[pLev][i2 - 1, j2 - 1, k2])/8.0
 
 
+# Computes the 3D laplacian of function
 def laplace(function):
     global N, vLev
     global hx2, hy2, hz2
 
     n = N[vLev]
-
-    laplacian = np.zeros(n)
 
     laplacian = xix2[vLev]*(function[2:, 1:-1, 1:-1] - 2.0*function[1:n[0]+1, 1:-1, 1:-1] + function[:n[0], 1:-1, 1:-1]) / hx2[vLev] + \
                 xixx[vLev]*(function[2:, 1:-1, 1:-1] - function[:n[0], 1:-1, 1:-1]) / (2.0*hx[vLev]) + \
@@ -356,11 +356,11 @@ def initVariables():
 
     nList = np.array(N)
 
-    rData = np.array([np.zeros(tuple(x)) for x in nList])
-    pData = np.array([np.zeros(tuple(x)) for x in nList + 2])
+    rData = [np.zeros(tuple(x)) for x in nList]
+    pData = [np.zeros(tuple(x)) for x in nList + 2]
 
-    sData = np.array([np.zeros_like(x) for x in pData])
-    iTemp = np.array([np.zeros_like(x) for x in pData])
+    sData = [np.zeros_like(x) for x in pData]
+    iTemp = [np.zeros_like(x) for x in pData]
 
     initGrid()
 
