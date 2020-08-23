@@ -50,8 +50,8 @@ L, N = grid.L, grid.N
 
 def initFields():
     global L, N
-    global Hx, Hz
     global U, W, P
+    global Hx, Hz, Pp
 
     # Create and initialize U, W and P arrays
     # The arrays have two extra points
@@ -67,6 +67,7 @@ def initFields():
     # Define arrays for storing RHS of NSE
     Hx = np.zeros_like(U)
     Hz = np.zeros_like(W)
+    Pp = np.zeros_like(P)
 
     if gv.probType == 0:
         # For moving top lid, U = 1.0 on lid, and second last point lies on the wall
@@ -83,8 +84,8 @@ def initFields():
 
 def euler():
     global N, L
-    global Hx, Hz
     global U, W, P
+    global Hx, Hz, Pp
 
     Hx.fill(0.0)
     Hz.fill(0.0)
@@ -109,7 +110,7 @@ def euler():
     rhs[1:L+1, 1:N+1] = ((U[1:L+1, 1:N+1] - U[0:L, 1:N+1])*grid.xi_xStag[:, npax]/grid.hx +
                          (W[1:L+1, 1:N+1] - W[1:L+1, 0:N])*grid.zt_zStag[:]/grid.hz)/gv.dt
 
-    Pp = ps.multigrid(rhs)
+    ps.multigrid(Pp, rhs)
 
     # Add pressure correction.
     P = P + Pp

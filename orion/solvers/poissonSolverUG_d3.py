@@ -125,18 +125,13 @@ def v_cycle():
     vLev = 0
     zeroBC = False
 
-    #print(pData[vLev][:3, :3, :3])
-
     # Pre-smoothing
     smooth(gv.preSm)
 
-    #print(pData[vLev][-3:, -3:, -3:])
     zeroBC = True
     for i in range(gv.VDepth):
         # Compute residual
         calcResidual()
-
-        #print(id(pData[vLev]))
 
         # Copy smoothed pressure for later use
         sData[vLev][:, :, :] = pData[vLev][:, :, :]
@@ -184,18 +179,7 @@ def smooth(sCount):
 
     n = N[vLev]
     for iCnt in range(sCount):
-        '''
-        if (vLev == 0 and iCnt <= 1) :
-            #print(pData[vLev][32:, 32:, 32:])
-            print(pData[vLev][:3, :3, :3], "\n")
-        '''
-
         imposeBC(pData[vLev])
-
-        '''
-        if (vLev == 0 and iCnt <= 1) :
-            print(pData[vLev][:3, :3, :3], "\n")
-        '''
 
         # Gauss-Seidel smoothing
         for i in range(1, n[0]+1):

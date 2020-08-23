@@ -38,7 +38,7 @@ import numpy as np
 
 # Set whether the simulation is going to be 2D or 3D
 # If 2D, set the below flag to True
-planar = False
+planar = True
 
 # Set below flag to True if the Poisson solver is being tested
 testPoisson = False
@@ -55,7 +55,7 @@ sInd = np.array([5, 5, 5])
 dLen = [1.0, 1.0, 1.0]
 
 # Turn below flag on when using uniform grid
-uniformGrid = True
+uniformGrid = False
 
 # If above flag is True, set tangent-hyperbolic stretching factors along X, Y and Z directions respectively
 beta = [1.0, 1.0, 1.0]
@@ -75,7 +75,7 @@ fwMode = "HDF5"
 dt = 0.01
 
 # Final time
-tMax = 0.1
+tMax = 0.5
 
 # Number of iterations after which output must be printed to standard I/O
 opInt = 1

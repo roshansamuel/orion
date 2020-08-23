@@ -36,13 +36,6 @@ from orion import meshData as grid
 from orion import globalVars as gv
 import numpy as np
 
-## For testing MG solver only
-if gv.testPoisson:
-    from mayavi import mlab
-
-# Redefine frequently used numpy object
-npax = np.newaxis
-
 ############################### GLOBAL VARIABLES ################################
 
 # Get array of grid sizes are tuples corresponding to each level of V-Cycle
@@ -74,13 +67,18 @@ zeroBC = False
 
 ############################## MULTI-GRID SOLVER ###############################
 
-def multigrid(H):
+def multigrid(P, H):
     global N
     global pData, rData
 
-    n = N[0]
+    chMat = np.zeros(N[0])
+    for i in range(gv.VDepth):
+        pData[i].fill(0.0)
+        rData[i].fill(0.0)
+        sData[i].fill(0.0)
+
+    pData[0][1:-1, 1:-1] = P[1:-1, 1:-1]
     rData[0] = H[1:-1, 1:-1]
-    chMat = np.zeros(n)
 
     for i in range(gv.vcCnt):
         v_cycle()
@@ -94,7 +92,7 @@ def multigrid(H):
             errVal = np.amax(np.abs(pAnlt[1:-1, 1:-1] - pData[0][1:-1, 1:-1]))
             print("Error after V-Cycle {0:2d} is {1:.4e}\n".format(i+1, errVal))
 
-    return pData[0]
+    P[1:-1, 1:-1] = pData[0][1:-1, 1:-1]
 
 
 # Multigrid V-cycle without the use of recursion
@@ -249,6 +247,8 @@ def prolong():
     pLev = vLev
     vLev -= 1
 
+    pData[vLev].fill(0.0)
+
     n = N[vLev]
     for i in range(1, n[0] + 1):
         i2 = int(i/2) + 1
@@ -335,8 +335,8 @@ def initGrid():
         ztz2[i] = ztz2[i-1][::2]
 
     # Reshape arrays to make it easier to multiply with 3D arrays
-    xixx = [x[:, npax] for x in xixx]
-    xix2 = [x[:, npax] for x in xix2]
+    xixx = [x[:, np.newaxis] for x in xixx]
+    xix2 = [x[:, np.newaxis] for x in xix2]
 
 
 ############################## BOUNDARY CONDITION ###############################
