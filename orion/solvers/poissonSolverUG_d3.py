@@ -89,14 +89,19 @@ zeroBC = False
 
 ############################## MULTI-GRID SOLVER ###############################
 
-def multigrid(H):
+def multigrid(P, H):
     global N
     global pAnlt
     global pData, rData
 
-    n = N[0]
+    chMat = np.zeros(N[0])
+    for i in range(gv.VDepth):
+        pData[i].fill(0.0)
+        rData[i].fill(0.0)
+        sData[i].fill(0.0)
+
+    pData[0][1:-1, 1:-1, 1:-1] = P[1:-1, 1:-1, 1:-1]
     rData[0] = H[1:-1, 1:-1, 1:-1]
-    chMat = np.zeros(n)
 
     for i in range(gv.vcCnt):
         v_cycle()
@@ -110,7 +115,7 @@ def multigrid(H):
             errVal = np.amax(np.abs(pAnlt[1:-1, 1:-1, 1:-1] - pData[0][1:-1, 1:-1, 1:-1]))
             print("Error after V-Cycle {0:2d} is {1:.4e}\n".format(i+1, errVal))
 
-    return pData[0]
+    P[1:-1, 1:-1, 1:-1] = pData[0][1:-1, 1:-1, 1:-1]
 
 
 # Multigrid V-cycle without the use of recursion
@@ -120,16 +125,21 @@ def v_cycle():
     vLev = 0
     zeroBC = False
 
+    #print(pData[vLev][:3, :3, :3])
+
     # Pre-smoothing
     smooth(gv.preSm)
 
+    #print(pData[vLev][-3:, -3:, -3:])
     zeroBC = True
     for i in range(gv.VDepth):
         # Compute residual
         calcResidual()
 
+        #print(id(pData[vLev]))
+
         # Copy smoothed pressure for later use
-        sData[vLev] = np.copy(pData[vLev])
+        sData[vLev][:, :, :] = pData[vLev][:, :, :]
 
         # Restrict to coarser level
         restrict()
@@ -174,7 +184,18 @@ def smooth(sCount):
 
     n = N[vLev]
     for iCnt in range(sCount):
+        '''
+        if (vLev == 0 and iCnt <= 1) :
+            #print(pData[vLev][32:, 32:, 32:])
+            print(pData[vLev][:3, :3, :3], "\n")
+        '''
+
         imposeBC(pData[vLev])
+
+        '''
+        if (vLev == 0 and iCnt <= 1) :
+            print(pData[vLev][:3, :3, :3], "\n")
+        '''
 
         # Gauss-Seidel smoothing
         for i in range(1, n[0]+1):
@@ -276,6 +297,8 @@ def prolong():
 
     pLev = vLev
     vLev -= 1
+
+    pData[vLev].fill(0.0)
 
     n = N[vLev]
     for i in range(1, n[0] + 1):

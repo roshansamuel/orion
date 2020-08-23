@@ -74,14 +74,14 @@ fwMode = "HDF5"
 # Time-step
 dt = 0.01
 
+# Final time
+tMax = 0.1
+
 # Number of iterations after which output must be printed to standard I/O
 opInt = 1
 
 # File writing interval
 fwInt = 1.0
-
-# Final time
-tMax = 0.1
 
 # Reynolds number
 Re = 1000
@@ -96,7 +96,7 @@ tolerance = 1.0e-6
 VDepth = 4
 
 # Number of V-cycles to be computed
-vcCnt = 7
+vcCnt = 5
 
 # Number of iterations during pre-smoothing
 preSm = 3

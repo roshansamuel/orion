@@ -53,14 +53,14 @@ if planar:
             U[-1, :] = -U[-2, :]
 
         # Bottom wall
-        U[:, 0] = 0.0
+        U[:, 1] = 0.0
 
         # Top wall
         if probType == 0:
             # Moving lid on top for LDC
-            U[:, -1] = 1.0
+            U[:, -2] = 1.0
         elif probType == 1:
-            U[:, -1] = 0.0
+            U[:, -2] = 0.0
 
         return U
 
@@ -78,10 +78,10 @@ if planar:
         # No-slip and no-penetration BCs
         else:
             # Left wall
-            W[0, :] = 0.0
+            W[1, :] = 0.0
 
             # Right wall
-            W[-1, :] = 0.0
+            W[-2, :] = 0.0
 
         # Bottom wall
         W[:, 0] = -W[:, 1]

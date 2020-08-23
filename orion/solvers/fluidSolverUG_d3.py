@@ -48,7 +48,7 @@ L, M, N = grid.L, grid.M, grid.N
 def initFields():
     global L, M, N
     global U, V, W, P
-    global Hx, Hy, Hz
+    global Hx, Hy, Hz, Pp
 
     # Create and initialize U, V, W and P arrays
     # The arrays have two extra points
@@ -68,6 +68,7 @@ def initFields():
     Hx = np.zeros_like(U)
     Hy = np.zeros_like(V)
     Hz = np.zeros_like(W)
+    Pp = np.zeros_like(P)
 
     if gv.probType == 0:
         # For moving top lid, U = 1.0 on lid, and second last point lies on the wall
@@ -85,7 +86,7 @@ def initFields():
 def euler():
     global N, M, L
     global U, V, W, P
-    global Hx, Hy, Hz
+    global Hx, Hy, Hz, Pp
 
     Hx.fill(0.0)
     Hy.fill(0.0)
@@ -101,36 +102,38 @@ def euler():
 
     # Calculating guessed values of U implicitly
     Hx[1:L, 1:M+1, 1:N+1] = U[1:L, 1:M+1, 1:N+1] + gv.dt*(Hx[1:L, 1:M+1, 1:N+1] - (P[2:L+1, 1:M+1, 1:N+1] - P[1:L, 1:M+1, 1:N+1])/grid.hx)
-    Up = uJacobi(Hx)
+    uJacobi(Hx)
 
     # Calculating guessed values of V implicitly
     Hy[1:L+1, 1:M, 1:N+1] = V[1:L+1, 1:M, 1:N+1] + gv.dt*(Hy[1:L+1, 1:M, 1:N+1] - (P[1:L+1, 2:M+1, 1:N+1] - P[1:L+1, 1:M, 1:N+1])/grid.hy)
-    Vp = vJacobi(Hy)
+    vJacobi(Hy)
 
     # Calculating guessed values of W implicitly
     Hz[1:L+1, 1:M+1, 1:N] = W[1:L+1, 1:M+1, 1:N] + gv.dt*(Hz[1:L+1, 1:M+1, 1:N] - (P[1:L+1, 1:M+1, 2:N+1] - P[1:L+1, 1:M+1, 1:N])/grid.hz)
-    Wp = wJacobi(Hz)
+    wJacobi(Hz)
 
     # Calculating pressure correction term
     rhs = np.zeros([L+2, M+2, N+2])
-    rhs[1:L+1, 1:M+1, 1:N+1] = ((Up[1:L+1, 1:M+1, 1:N+1] - Up[0:L, 1:M+1, 1:N+1])/grid.hx +
-                                (Vp[1:L+1, 1:M+1, 1:N+1] - Vp[1:L+1, 0:M, 1:N+1])/grid.hy +
-                                (Wp[1:L+1, 1:M+1, 1:N+1] - Wp[1:L+1, 1:M+1, 0:N])/grid.hz)/gv.dt
+    rhs[1:L+1, 1:M+1, 1:N+1] = ((U[1:L+1, 1:M+1, 1:N+1] - U[0:L, 1:M+1, 1:N+1])/grid.hx +
+                                (V[1:L+1, 1:M+1, 1:N+1] - V[1:L+1, 0:M, 1:N+1])/grid.hy +
+                                (W[1:L+1, 1:M+1, 1:N+1] - W[1:L+1, 1:M+1, 0:N])/grid.hz)/gv.dt
 
-    Pp = ps.multigrid(rhs)
+    ps.multigrid(Pp, rhs)
 
     # Add pressure correction.
     P = P + Pp
 
     # Update new values for U, V and W
-    U[1:L, 1:M+1, 1:N+1] = Up[1:L, 1:M+1, 1:N+1] - gv.dt*(Pp[2:L+1, 1:M+1, 1:N+1] - Pp[1:L, 1:M+1, 1:N+1])/grid.hx
-    V[1:L+1, 1:M, 1:N+1] = Vp[1:L+1, 1:M, 1:N+1] - gv.dt*(Pp[1:L+1, 2:M+1, 1:N+1] - Pp[1:L+1, 1:M, 1:N+1])/grid.hy
-    W[1:L+1, 1:M+1, 1:N] = Wp[1:L+1, 1:M+1, 1:N] - gv.dt*(Pp[1:L+1, 1:M+1, 2:N+1] - Pp[1:L+1, 1:M+1, 1:N])/grid.hz
+    U[1:L, 1:M+1, 1:N+1] = U[1:L, 1:M+1, 1:N+1] - gv.dt*(Pp[2:L+1, 1:M+1, 1:N+1] - Pp[1:L, 1:M+1, 1:N+1])/grid.hx
+    V[1:L+1, 1:M, 1:N+1] = V[1:L+1, 1:M, 1:N+1] - gv.dt*(Pp[1:L+1, 2:M+1, 1:N+1] - Pp[1:L+1, 1:M, 1:N+1])/grid.hy
+    W[1:L+1, 1:M+1, 1:N] = W[1:L+1, 1:M+1, 1:N] - gv.dt*(Pp[1:L+1, 1:M+1, 2:N+1] - Pp[1:L+1, 1:M+1, 1:N])/grid.hz
 
     # Impose no-slip BC on new values of U, V and W
     U = bc.imposeUBCs(U)
     V = bc.imposeVBCs(V)
     W = bc.imposeWBCs(W)
+
+    print(U[30, 30, 30], V[30, 30, 30], W[30, 30, 30])
 
 
 def computeNLinDiff_X(U, V, W):
@@ -165,31 +168,28 @@ def computeNLinDiff_Z(U, V, W):
 
 #Jacobi iterative solver for U
 def uJacobi(rho):
-    global L, N, M
+    global U
+    global L, M, N
 
-    prev_sol = np.zeros_like(rho)
-    next_sol = np.zeros_like(rho)
-    test_sol = np.zeros_like(rho)
+    temp_sol = np.zeros_like(rho)
+
     jCnt = 0
-
     while True:
-        next_sol[1:L, 2:M, 2:N] = ((grid.hy2hz2*(prev_sol[0:L-1, 2:M, 2:N] + prev_sol[2:L+1, 2:M, 2:N]) +
-                                    grid.hz2hx2*(prev_sol[1:L, 1:M-1, 2:N] + prev_sol[1:L, 3:M+1, 2:N]) +
-                                    grid.hx2hy2*(prev_sol[1:L, 2:M, 1:N-1] + prev_sol[1:L, 2:M, 3:N+1]))*
-                                       gv.dt/(grid.hx2hy2hz2*2.0*gv.Re) + rho[1:L, 2:M, 2:N])/ \
-                                (1.0 + gv.dt*(grid.hy2hz2 + grid.hz2hx2 + grid.hx2hy2)/(gv.Re*grid.hx2hy2hz2))
+        temp_sol[1:L, 2:M, 2:N] = ((grid.hy2hz2*(U[0:L-1, 2:M, 2:N] + U[2:L+1, 2:M, 2:N]) +
+                                    grid.hz2hx2*(U[1:L, 1:M-1, 2:N] + U[1:L, 3:M+1, 2:N]) +
+                                    grid.hx2hy2*(U[1:L, 2:M, 1:N-1] + U[1:L, 2:M, 3:N+1]))*
+                             gv.dt/(grid.hx2hy2hz2*2.0*gv.Re) + rho[1:L, 2:M, 2:N])/ \
+                      (1.0 + gv.dt*(grid.hy2hz2 + grid.hz2hx2 + grid.hx2hy2)/(gv.Re*grid.hx2hy2hz2))
 
-        # IMPOSE BOUNDARY CONDITION AND COPY TO PREVIOUS SOLUTION ARRAY
-        next_sol = bc.imposeUBCs(next_sol)
-        prev_sol = np.copy(next_sol)
+        # SWAP ARRAYS AND IMPOSE BOUNDARY CONDITION
+        U, temp_sol = temp_sol, U
+        U = bc.imposeUBCs(U)
 
-        test_sol[1:L, 2:M, 2:N] = next_sol[1:L, 2:M, 2:N] - 0.5*gv.dt*(
-                                 (next_sol[0:L-1, 2:M, 2:N] - 2.0*next_sol[1:L, 2:M, 2:N] + next_sol[2:L+1, 2:M, 2:N])/grid.hx2 +
-                                 (next_sol[1:L, 1:M-1, 2:N] - 2.0*next_sol[1:L, 2:M, 2:N] + next_sol[1:L, 3:M+1, 2:N])/grid.hy2 +
-                                 (next_sol[1:L, 2:M, 1:N-1] - 2.0*next_sol[1:L, 2:M, 2:N] + next_sol[1:L, 2:M, 3:N+1])/grid.hz2)/gv.Re
+        maxErr = np.amax(np.fabs(rho[1:L, 2:M, 2:N] - (U[1:L, 2:M, 2:N] - 0.5*gv.dt*(
+                        (U[0:L-1, 2:M, 2:N] - 2.0*U[1:L, 2:M, 2:N] + U[2:L+1, 2:M, 2:N])/grid.hx2 +
+                        (U[1:L, 1:M-1, 2:N] - 2.0*U[1:L, 2:M, 2:N] + U[1:L, 3:M+1, 2:N])/grid.hy2 +
+                        (U[1:L, 2:M, 1:N-1] - 2.0*U[1:L, 2:M, 2:N] + U[1:L, 2:M, 3:N+1])/grid.hz2)/gv.Re)))
 
-        error_temp = np.fabs(rho[1:L, 2:M, 2:N] - test_sol[1:L, 2:M, 2:N])
-        maxErr = np.amax(error_temp)
         if maxErr < gv.tolerance:
             break
 
@@ -199,36 +199,31 @@ def uJacobi(rho):
             print("Maximum error: ", maxErr)
             quit()
 
-    return prev_sol
-
 
 #Jacobi iterative solver for V
 def vJacobi(rho):
-    global L, N, M
+    global V
+    global L, M, N
 
-    prev_sol = np.zeros_like(rho)
-    next_sol = np.zeros_like(rho)
-    test_sol = np.zeros_like(rho)
+    temp_sol = np.zeros_like(rho)
+
     jCnt = 0
-
     while True:
-        next_sol[2:L, 1:M, 2:N] = ((grid.hy2hz2*(prev_sol[1:L-1, 1:M, 2:N] + prev_sol[3:L+1, 1:M, 2:N]) +
-                                    grid.hz2hx2*(prev_sol[2:L, 0:M-1, 2:N] + prev_sol[2:L, 2:M+1, 2:N]) +
-                                    grid.hx2hy2*(prev_sol[2:L, 1:M, 1:N-1] + prev_sol[2:L, 1:M, 3:N+1]))*
-                                       gv.dt/(grid.hx2hy2hz2*2.0*gv.Re) + rho[2:L, 1:M, 2:N])/ \
-                                (1.0 + gv.dt*(grid.hy2hz2 + grid.hz2hx2 + grid.hx2hy2)/(gv.Re*grid.hx2hy2hz2))
+        temp_sol[2:L, 1:M, 2:N] = ((grid.hy2hz2*(V[1:L-1, 1:M, 2:N] + V[3:L+1, 1:M, 2:N]) +
+                                    grid.hz2hx2*(V[2:L, 0:M-1, 2:N] + V[2:L, 2:M+1, 2:N]) +
+                                    grid.hx2hy2*(V[2:L, 1:M, 1:N-1] + V[2:L, 1:M, 3:N+1]))*
+                             gv.dt/(grid.hx2hy2hz2*2.0*gv.Re) + rho[2:L, 1:M, 2:N])/ \
+                      (1.0 + gv.dt*(grid.hy2hz2 + grid.hz2hx2 + grid.hx2hy2)/(gv.Re*grid.hx2hy2hz2))
 
-        # IMPOSE BOUNDARY CONDITION AND COPY TO PREVIOUS SOLUTION ARRAY
-        next_sol = bc.imposeVBCs(next_sol)
-        prev_sol = np.copy(next_sol)
+        # SWAP ARRAYS AND IMPOSE BOUNDARY CONDITION
+        V, temp_sol = temp_sol, V
+        V = bc.imposeVBCs(V)
 
-        test_sol[2:L, 1:M, 2:N] = next_sol[2:L, 1:M, 2:N] - 0.5*gv.dt*(
-                                 (next_sol[1:L-1, 1:M, 2:N] - 2.0*next_sol[2:L, 1:M, 2:N] + next_sol[3:L+1, 1:M, 2:N])/grid.hx2 +
-                                 (next_sol[2:L, 0:M-1, 2:N] - 2.0*next_sol[2:L, 1:M, 2:N] + next_sol[2:L, 2:M+1, 2:N])/grid.hy2 +
-                                 (next_sol[2:L, 1:M, 1:N-1] - 2.0*next_sol[2:L, 1:M, 2:N] + next_sol[2:L, 1:M, 3:N+1])/grid.hz2)/gv.Re
+        maxErr = np.amax(np.fabs(rho[2:L, 1:M, 2:N] - (V[2:L, 1:M, 2:N] - 0.5*gv.dt*(
+                        (V[1:L-1, 1:M, 2:N] - 2.0*V[2:L, 1:M, 2:N] + V[3:L+1, 1:M, 2:N])/grid.hx2 +
+                        (V[2:L, 0:M-1, 2:N] - 2.0*V[2:L, 1:M, 2:N] + V[2:L, 2:M+1, 2:N])/grid.hy2 +
+                        (V[2:L, 1:M, 1:N-1] - 2.0*V[2:L, 1:M, 2:N] + V[2:L, 1:M, 3:N+1])/grid.hz2)/gv.Re)))
 
-        error_temp = np.fabs(rho[2:L, 1:M, 2:N] - test_sol[2:L, 1:M, 2:N])
-        maxErr = np.amax(error_temp)
         if maxErr < gv.tolerance:
             break
 
@@ -238,36 +233,31 @@ def vJacobi(rho):
             print("Maximum error: ", maxErr)
             quit()
 
-    return prev_sol
-
 
 #Jacobi iterative solver for W
 def wJacobi(rho):
-    global L, N, M
+    global W
+    global L, M, N
 
-    prev_sol = np.zeros_like(rho)
-    next_sol = np.zeros_like(rho)
-    test_sol = np.zeros_like(rho)
+    temp_sol = np.zeros_like(rho)
+
     jCnt = 0
-
     while True:
-        next_sol[2:L, 2:M, 1:N] = ((grid.hy2hz2*(prev_sol[1:L-1, 2:M, 1:N] + prev_sol[3:L+1, 2:M, 1:N]) +
-                                    grid.hz2hx2*(prev_sol[2:L, 1:M-1, 1:N] + prev_sol[2:L, 3:M+1, 1:N]) +
-                                    grid.hx2hy2*(prev_sol[2:L, 2:M, 0:N-1] + prev_sol[2:L, 2:M, 2:N+1]))*
-                                       gv.dt/(grid.hx2hy2hz2*2.0*gv.Re) + rho[2:L, 2:M, 1:N])/ \
-                                (1.0 + gv.dt*(grid.hy2hz2 + grid.hz2hx2 + grid.hx2hy2)/(gv.Re*grid.hx2hy2hz2))
+        temp_sol[2:L, 2:M, 1:N] = ((grid.hy2hz2*(W[1:L-1, 2:M, 1:N] + W[3:L+1, 2:M, 1:N]) +
+                                    grid.hz2hx2*(W[2:L, 1:M-1, 1:N] + W[2:L, 3:M+1, 1:N]) +
+                                    grid.hx2hy2*(W[2:L, 2:M, 0:N-1] + W[2:L, 2:M, 2:N+1]))*
+                             gv.dt/(grid.hx2hy2hz2*2.0*gv.Re) + rho[2:L, 2:M, 1:N])/ \
+                      (1.0 + gv.dt*(grid.hy2hz2 + grid.hz2hx2 + grid.hx2hy2)/(gv.Re*grid.hx2hy2hz2))
 
-        # IMPOSE BOUNDARY CONDITION AND COPY TO PREVIOUS SOLUTION ARRAY
-        next_sol = bc.imposeWBCs(next_sol)
-        prev_sol = np.copy(next_sol)
+        # SWAP ARRAYS AND IMPOSE BOUNDARY CONDITION
+        W, temp_sol = temp_sol, W
+        W = bc.imposeWBCs(W)
 
-        test_sol[2:L, 2:M, 1:N] = next_sol[2:L, 2:M, 1:N] - 0.5*gv.dt*(
-                                 (next_sol[1:L-1, 2:M, 1:N] - 2.0*next_sol[2:L, 2:M, 1:N] + next_sol[3:L+1, 2:M, 1:N])/grid.hx2 +
-                                 (next_sol[2:L, 1:M-1, 1:N] - 2.0*next_sol[2:L, 2:M, 1:N] + next_sol[2:L, 3:M+1, 1:N])/grid.hy2 +
-                                 (next_sol[2:L, 2:M, 0:N-1] - 2.0*next_sol[2:L, 2:M, 1:N] + next_sol[2:L, 2:M, 2:N+1])/grid.hz2)/gv.Re
+        maxErr = np.amax(np.fabs(rho[2:L, 2:M, 1:N] - (W[2:L, 2:M, 1:N] - 0.5*gv.dt*(
+                        (W[1:L-1, 2:M, 1:N] - 2.0*W[2:L, 2:M, 1:N] + W[3:L+1, 2:M, 1:N])/grid.hx2 +
+                        (W[2:L, 1:M-1, 1:N] - 2.0*W[2:L, 2:M, 1:N] + W[2:L, 3:M+1, 1:N])/grid.hy2 +
+                        (W[2:L, 2:M, 0:N-1] - 2.0*W[2:L, 2:M, 1:N] + W[2:L, 2:M, 2:N+1])/grid.hz2)/gv.Re)))
 
-        error_temp = np.fabs(rho[2:L, 2:M, 1:N] - test_sol[2:L, 2:M, 1:N])
-        maxErr = np.amax(error_temp)
         if maxErr < gv.tolerance:
             break
 
@@ -276,8 +266,6 @@ def wJacobi(rho):
             print("ERROR: Jacobi not converging in W. Aborting")
             print("Maximum error: ", maxErr)
             quit()
-
-    return prev_sol
 
 
 def getDiv():
