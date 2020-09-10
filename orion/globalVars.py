@@ -38,10 +38,10 @@ import numpy as np
 
 # Set whether the simulation is going to be 2D or 3D
 # If 2D, set the below flag to True
-planar = True
+planar = False
 
 # Set below flag to True if the Poisson solver is being tested
-testPoisson = False
+testPoisson = True
 
 # Set the number of processors for parallel computing (under development) with multiprocessing module
 nProcs = 8
@@ -55,7 +55,7 @@ sInd = np.array([5, 5, 5])
 dLen = [1.0, 1.0, 1.0]
 
 # Turn below flag on when using uniform grid
-uniformGrid = False
+uniformGrid = True
 
 # If above flag is True, set tangent-hyperbolic stretching factors along X, Y and Z directions respectively
 beta = [1.0, 1.0, 1.0]
@@ -151,6 +151,13 @@ def printParams():
 ########################################### CHECK PARAMETERS #######################################
 
 def checkParams():
+    # AN EMPTY LINE FOR AESTHETICS
+    print("")
+
     if VDepth >= min(sInd):
         print("ERROR: V-Cycle depth exceeds the allowable depth for given grid size")
+        exit()
+
+    if testPoisson and not uniformGrid:
+        print("ERROR: Poisson testing subroutines are presently available only for uniform grid solvers")
         exit()

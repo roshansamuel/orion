@@ -54,13 +54,6 @@ else:
 
 # Main segment of code.
 def main():
-    maxProcs = mp.cpu_count()
-    if gv.nProcs > maxProcs:
-        print("\nERROR: " + str(gv.nProcs) + " exceeds the available number of processors (" + str(maxProcs) + ")\n")
-        exit(0)
-    else:
-        print("\nUsing " + str(gv.nProcs) + " out of " + str(maxProcs) + " processors\n")
-
     gv.checkParams()
 
     if not gv.uniformGrid:
@@ -93,9 +86,8 @@ def runMGTest():
     else:
         mgRHS = np.ones((fs.grid.L + 2, fs.grid.M + 2, fs.grid.N + 2))
 
-    mgLHS = fs.ps.multigrid(mgRHS)
-
-    #fs.ps.plotSoln(mgLHS)
+    mgLHS = np.zeros_like(mgRHS)
+    fs.ps.multigrid(mgRHS, mgLHS)
 
 
 ####################################################################################################

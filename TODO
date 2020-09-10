@@ -1,0 +1,4 @@
+Implement variable V-Cycle as done in SARAS
+Implement normalizing of RHS for Poisson problems with Neumann BC on all walls as done in SARAS
+Speed-up Gauss-Seidel iterative solver using red-black GS method
+Write Dirichlet BC testing routines for non-uniform grid Poisson solvers

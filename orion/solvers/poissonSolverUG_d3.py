@@ -36,10 +36,6 @@ from orion import meshData as grid
 from orion import globalVars as gv
 import numpy as np
 
-## For testing MG solver only
-if gv.testPoisson:
-    from mayavi import mlab
-
 ############################### GLOBAL VARIABLES ################################
 
 # Get array of grid sizes are tuples corresponding to each level of V-Cycle
@@ -474,22 +470,4 @@ def initDirichlet():
     pWallX = pAnlt[1, :, :]
     pWallY = pAnlt[:, 1, :]
     pWallZ = pAnlt[:, :, 1]
-
-
-############################### PLOTTING ROUTINE ################################
-
-
-def plotSoln(pSoln):
-    global N
-    global pAnlt
-
-    midZPt = int(N[0][2]/2) + 1
-
-    mlab.imshow(pSoln[1:-1, 1:-1, midZPt])
-    mlab.colorbar(orientation='vertical')
-    mlab.show()
-
-    mlab.imshow(pAnlt[1:-1, 1:-1, midZPt])
-    mlab.colorbar(orientation='vertical')
-    mlab.show()
 
